@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Generate Posts{% endblock %}
+{% block content %}
+    <h1>Generate LinkedIn Post</h1>
+
+    <div class="form-group">
+        <label for="company-name">Company Name:</label>
+        <input type="text" id="company-name" placeholder="Enter your company name">
+    </div>
+
+    <div class="form-group">
+        <label for="business-type">Business Type:</label>
+        <select id="business-type">
+            <option value="saas">SaaS</option>
+            <option value="consulting">Consulting</option>
+            <option value="ecommerce">E-Commerce</option>
+            <option value="tech">Technology</option>
+            <option value="other">Other</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="tone">Tone of Voice:</label>
+        <select id="tone">
+            <option value="professional">Professional & Formal</option>
+            <option value="casual">Casual & Friendly</option>
+            <option value="innovative">Innovative & Tech-Forward</option>
+            <option value="authoritative">Authoritative & Expert</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="about-us">About Your Company:</label>
+        <textarea id="about-us" rows="4" placeholder="Tell us about your company, products, and target audience..."></textarea>
+    </div>
+
+    <button class="button" onclick="generatePost()">Generate Post</button>
+    <div id="result" class="result"></div>
+
+    <script>
+        function generatePost() {
+            const data = {
+                companyName: document.getElementById('company-name').value,
+                businessType: document.getElementById('business-type').value,
+                tone: document.getElementById('tone').value,
+                aboutUs: document.getElementById('about-us').value
+            };
+
+            fetch('/generate-post', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    document.getElementById('result').innerHTML = 
+                        `<h3>Generated Post:</h3><p>${data.post}</p>`;
+                } else {
+                    document.getElementById('result').innerHTML = 
+                        `<p>Error: ${data.message}</p>`;
+                }
+            })
+            .catch(error => {
+                document.getElementById('result').innerHTML = 
+                    `<p>Error: ${error}</p>`;
+            });
+        }
+    </script>
+{% endblock %}

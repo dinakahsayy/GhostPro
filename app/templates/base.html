@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GhostPro LinkedIn AI - {% block title %}{% endblock %}</title>
+    <style>
+        /* Navigation styles */
+        .nav-bar {
+            background-color: #0077B5;
+            padding: 15px;
+            margin-bottom: 30px;
+        }
+        .nav-bar a {
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            margin-right: 10px;
+            border-radius: 5px;
+        }
+        .nav-bar a:hover {
+            background-color: #005582;
+        }
+        /* Main content styles */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        /* Common elements */
+        .button {
+            background-color: #0077B5;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], textarea, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav-bar">
+        <a href="{{ url_for('routes.dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('routes.generate') }}">Generate Posts</a>
+        <a href="{{ url_for('routes.history') }}">Post History</a>
+        <a href="{{ url_for('routes.templates') }}">Templates</a>
+    </div>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}Post History{% endblock %}
+{% block content %}
+    <h1>Post History</h1>
+
+    <!-- LinkedIn Connect Button -->
+    <div class="linkedin-auth-section">
+        <a href="{{ url_for('routes.linkedin_auth') }}" class="button linkedin-button">
+            Connect LinkedIn Account
+        </a>
+    </div>
+
+    {% for post in posts %}
+        <div class="card post-card" id="post-{{ post.id }}">
+            <!-- Post Content Section -->
+            <div class="post-content">
+                <p>{{ post.content }}</p>
+                <div class="post-metadata">
+                    <small>Created: {{ post.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+                    <small>Status: {% if post.posted %}Posted{% else %}Draft{% endif %}</small>
+                    {% if post.scheduled_time %}
+                        <small>Scheduled: {{ post.scheduled_time.strftime('%Y-%m-%d %H:%M') }}</small>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                {% if not post.posted %}
+                    <button class="button" onclick="postToLinkedIn({{ post.id }})">Post Now</button>
+                    <button class="button schedule-button" onclick="showScheduleModal({{ post.id }})">Schedule Post</button>
+                {% endif %}
+                <button class="button edit-button" onclick="showEditModal({{ post.id }})">Edit</button>
+                <button class="button delete-button" onclick="deletePost({{ post.id }})">Delete</button>
+            </div>
+        </div>
+    {% endfor %}
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h2>Edit Post</h2>
+            <textarea id="editPostContent" rows="6"></textarea>
+            <div class="modal-buttons">
+                <button class="button" onclick="saveEdit()">Save</button>
+                <button class="button" onclick="closeEditModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Modal -->
+    <div id="scheduleModal" class="modal">
+        <div class="modal-content">
+            <h2>Schedule Post</h2>
+            <input type="datetime-local" id="scheduleDateTime">
+            <div class="modal-buttons">
+                <button class="button" onclick="schedulePost()">Schedule</button>
+                <button class="button" onclick="closeScheduleModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .linkedin-auth-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .linkedin-button {
+            background-color: #0077B5;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: inline-block;
+        }
+        .post-card {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .post-metadata {
+            margin-top: 10px;
+            color: #666;
+        }
+        .post-metadata small {
+            margin-right: 15px;
+        }
+        .action-buttons {
+            margin-top: 15px;
+        }
+        .button {
+            margin-right: 10px;
+            padding: 8px 15px;
+        }
+        .edit-button {
+            background-color: #0077B5;
+        }
+        .delete-button {
+            background-color: #dc3545;
+        }
+        .schedule-button {
+            background-color: #28a745;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+        }
+        .modal textarea {
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+        }
+        .modal input {
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+        }
+        .modal-buttons {
+            text-align: right;
+            margin-top: 15px;
+        }
+    </style>
+
+    <script>
+        let currentPostId = null;
+
+        // Post to LinkedIn
+        function postToLinkedIn(postId) {
+            if (!confirm('Are you sure you want to post this to LinkedIn now?')) return;
+
+            fetch(`/post-to-linkedin/${postId}`, {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Successfully posted to LinkedIn!');
+                    location.reload();
+                } else {
+                    if (data.message === 'Not authenticated with LinkedIn') {
+                        window.location.href = "{{ url_for('routes.linkedin_auth') }}";
+                    } else {
+                        alert('Failed to post: ' + data.message);
+                    }
+                }
+            })
+            .catch(error => {
+                alert('Error posting to LinkedIn: ' + error);
+            });
+        }
+
+        // Edit Post Functions
+        function showEditModal(postId) {
+            currentPostId = postId;
+            const postContent = document.querySelector(`#post-${postId} .post-content p`).textContent;
+            document.getElementById('editPostContent').value = postContent;
+            document.getElementById('editModal').style.display = 'block';
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        function saveEdit() {
+            const content = document.getElementById('editPostContent').value;
+
+            fetch(`/edit-post/${currentPostId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ content: content })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert('Failed to save changes: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error saving changes: ' + error);
+            });
+
+            closeEditModal();
+        }
+
+        // Schedule Post Functions
+        function showScheduleModal(postId) {
+            currentPostId = postId;
+            document.getElementById('scheduleModal').style.display = 'block';
+        }
+
+        function closeScheduleModal() {
+            document.getElementById('scheduleModal').style.display = 'none';
+        }
+
+        function schedulePost() {
+            const scheduleTime = document.getElementById('scheduleDateTime').value;
+
+            fetch(`/schedule-post/${currentPostId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ schedule_time: scheduleTime })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Post scheduled successfully!');
+                    location.reload();
+                } else {
+                    alert('Failed to schedule post: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error scheduling post: ' + error);
+            });
+
+            closeScheduleModal();
+        }
+
+        // Delete Post Function
+        function deletePost(postId) {
+            if (!confirm('Are you sure you want to delete this post?')) return;
+
+            fetch(`/delete-post/${postId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.querySelector(`#post-${postId}`).remove();
+                } else {
+                    alert('Failed to delete post: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error deleting post: ' + error);
+            });
+        }
+    </script>
+{% endblock %}
