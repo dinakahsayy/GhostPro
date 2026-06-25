@@ -5,6 +5,9 @@ import os
 
 from dotenv import load_dotenv
 from flask import Flask
+from flask_login import LoginManager
+
+login_manager = LoginManager()
 
 
 def create_app():
@@ -27,6 +30,20 @@ def create_app():
         client_secret=app.config['LINKEDIN_CLIENT_SECRET'],
         redirect_uri=app.config['LINKEDIN_REDIRECT_URI'],
     )
+
+    # Authentication
+    from .models.database import User, db_session
+
+    login_manager.init_app(app)
+    login_manager.login_view = 'routes.index'
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        return db_session.get(User, user_id)
+
+    @app.teardown_appcontext
+    def remove_db_session(exc=None):
+        db_session.remove()
 
     from .routes import routes
     app.register_blueprint(routes)

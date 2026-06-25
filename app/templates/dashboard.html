@@ -1,15 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-    <h1>Welcome to GhostPro LinkedIn AI</h1>
+    <h1>Welcome{% if user.name %}, {{ user.name }}{% endif %}</h1>
+
     <div class="card">
-        <h2>Quick Stats</h2>
-        <p>Posts Generated: 0</p>
-        <p>Posts Published: 0</p>
-        <p>Engagement Rate: 0%</p>
+        <h2>Your profile</h2>
+        <p>
+            {% if user.title %}{{ user.title }}{% endif %}
+            {% if user.company %} at {{ user.company }}{% endif %}
+            {% if user.industry %}<span class="muted"> · {{ user.industry }}</span>{% endif %}
+        </p>
+        <p class="muted">
+            Posting mode: {{ user.posting_mode or 'not set' }} ·
+            Frequency: {{ user.post_frequency or 'not set' }} ·
+            Timezone: {{ user.timezone or 'not set' }}
+        </p>
     </div>
+
+    {% if user.style_profile %}
     <div class="card">
-        <h2>Recent Activity</h2>
-        <p>No recent activity</p>
+        <h2>Style profile</h2>
+        <p>
+            Tone: {{ user.style_profile.tone or '—' }} ·
+            Length: {{ user.style_profile.preferred_length or '—' }} ·
+            Emoji usage: {{ user.style_profile.emoji_usage or '—' }}/5
+        </p>
+        {% if user.style_profile.top_topics %}
+            <p class="muted">Topics: {{ user.style_profile.top_topics | join(', ') }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <h2>Next up</h2>
+        <p class="muted">The Content Inbox and scheduled posts land in Phase 2.</p>
+        <a class="button" href="{{ url_for('routes.generate') }}">Generate a post</a>
     </div>
 {% endblock %}

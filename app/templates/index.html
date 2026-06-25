@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Welcome{% endblock %}
+{% block content %}
+    <div class="card" style="max-width: 560px; margin: 40px auto; text-align: center;">
+        <h1>Your LinkedIn voice, on autopilot</h1>
+        <p class="muted">
+            GhostPro learns how you write and turns your real stories into LinkedIn
+            posts — generated, scheduled, and published in your voice.
+        </p>
+        <p style="margin-top: 28px;">
+            <a class="button" href="{{ url_for('routes.linkedin_auth') }}">Connect with LinkedIn</a>
+        </p>
+        {% if dev_login %}
+            <p style="margin-top: 16px;">
+                <a class="button secondary" href="{{ url_for('routes.dev_login') }}">Dev login (local only)</a>
+            </p>
+        {% endif %}
+    </div>
+{% endblock %}

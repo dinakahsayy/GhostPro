@@ -50,6 +50,26 @@ class LinkedInAPI:
             self.logger.error(f"Error exchanging auth code: {e}")
             return None
 
+    def get_userinfo(self, access_token):
+        """Fetch the OpenID Connect userinfo for the authenticated member.
+
+        Returns the parsed dict (sub, name, given_name, family_name, email,
+        picture, locale) or None on failure.
+        """
+        try:
+            response = requests.get(
+                'https://api.linkedin.com/v2/userinfo',
+                headers={'Authorization': f'Bearer {access_token}'},
+                timeout=10,
+            )
+            if response.status_code != 200:
+                self.logger.error(f"Userinfo error: {response.status_code}")
+                return None
+            return response.json()
+        except Exception as e:
+            self.logger.error(f"Error fetching userinfo: {e}")
+            return None
+
     def create_post(self, access_token, content):
         try:
             headers = {
@@ -58,16 +78,11 @@ class LinkedInAPI:
                 'X-Restli-Protocol-Version': '2.0.0',
             }
 
-            userinfo_response = requests.get(
-                'https://api.linkedin.com/v2/userinfo',
-                headers=headers,
-                timeout=10,
-            )
-            if userinfo_response.status_code != 200:
-                self.logger.error(f"Userinfo error: {userinfo_response.status_code}")
+            user_data = self.get_userinfo(access_token)
+            if not user_data:
                 return False
 
-            person_id = userinfo_response.json().get('sub')
+            person_id = user_data.get('sub')
 
             post_response = requests.post(
                 f"{self.base_url}/ugcPosts",

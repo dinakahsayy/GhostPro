@@ -13,7 +13,8 @@ from sqlalchemy import (
     JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text,
     create_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
+from flask_login import UserMixin
+from sqlalchemy.orm import DeclarativeBase, relationship, scoped_session, sessionmaker
 
 from ..utils.crypto import EncryptedString
 
@@ -29,13 +30,24 @@ def _uuid():
 # ---------------------------------------------------------------------------
 # §6.1 Users
 # ---------------------------------------------------------------------------
-class User(Base):
+class User(Base, UserMixin):
     __tablename__ = 'users'
 
     id = Column(String(36), primary_key=True, default=_uuid)
     email = Column(String(255), unique=True, nullable=False)
     name = Column(String(255))
     linkedin_id = Column(String(255))  # LinkedIn member URN
+
+    # Professional profile — auto-filled from LinkedIn where possible, otherwise
+    # confirmed/entered during onboarding (§3.1/§3.2). title + industry feed the
+    # post-generation system prompt (§8.2).
+    headline = Column(String(255))
+    title = Column(String(255))                  # current role, e.g. "VP of Sales"
+    company = Column(String(255))
+    industry = Column(String(255))
+    bio = Column(Text)                            # LinkedIn about/summary
+    audience_description = Column(Text)           # how they describe their LinkedIn audience
+    age_range = Column(String(20))               # optional, helps calibrate tone
 
     # Fernet-encrypted at rest via EncryptedString; ORM code reads/writes plaintext.
     linkedin_access_token = Column(EncryptedString)
@@ -64,6 +76,11 @@ class User(Base):
     posts = relationship('Post', back_populates='user', cascade='all, delete-orphan')
     scheduled_jobs = relationship('ScheduledJob', back_populates='user', cascade='all, delete-orphan')
 
+    @property
+    def is_active(self):
+        """Flask-Login: soft-deleted users cannot log in."""
+        return self.deleted_at is None
+
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
 
@@ -83,6 +100,7 @@ class StyleProfile(Base):
     top_topics = Column(JSON)               # array of topic strings
     avoid_topics = Column(JSON)             # array of topics to exclude
     preferred_length = Column(String(10))   # short | medium | long
+    content_goal = Column(Text)             # what the user wants their presence to communicate (§3.2)
     raw_style_summary = Column(Text)        # GPT-generated prose used in system prompts
     sample_posts_analyzed = Column(Integer, default=0)
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -231,4 +249,11 @@ class LinkedInPost(Base):
 
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///ghostpro.db')
 engine = create_engine(DATABASE_URL, future=True)
+
+# Session() -> a fresh, independent session for discrete `with Session() as s:` blocks.
 Session = sessionmaker(bind=engine, future=True)
+
+# Request-scoped session registry. Used for anything tied to the request lifecycle
+# (Flask-Login's current_user and routes that read its relationships). Removed in
+# create_app()'s teardown_appcontext so each request gets a clean session.
+db_session = scoped_session(Session)

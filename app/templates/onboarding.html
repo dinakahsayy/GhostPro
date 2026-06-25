@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}Onboarding{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 680px; margin: 24px auto;" x-data="onboarding()" x-init="prefill()">
+    <p class="muted" x-text="`Step ${step} of ${total}`"></p>
+
+    <!-- Step 1: About You -->
+    <div x-show="step === 1">
+        <h2>About you</h2>
+        <div class="form-group">
+            <label>Full name</label>
+            <input type="text" x-model="form.name">
+        </div>
+        <div class="form-group">
+            <label>Current role</label>
+            <input type="text" x-model="form.title" placeholder="e.g. Founder, VP of Sales">
+        </div>
+        <div class="form-group">
+            <label>Company</label>
+            <input type="text" x-model="form.company">
+        </div>
+        <div class="form-group">
+            <label>Industry / field</label>
+            <input type="text" x-model="form.industry">
+        </div>
+        <div class="form-group">
+            <label>How would you describe your LinkedIn audience?</label>
+            <textarea rows="2" x-model="form.audience_description"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Age range <span class="muted">(optional — helps calibrate tone)</span></label>
+            <select x-model="form.age_range">
+                <option value="">Prefer not to say</option>
+                <option>18-24</option><option>25-34</option><option>35-44</option>
+                <option>45-54</option><option>55+</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Step 2: Content Preferences -->
+    <div x-show="step === 2">
+        <h2>Content preferences</h2>
+        <div class="form-group">
+            <label>What do you most want your LinkedIn presence to communicate?</label>
+            <textarea rows="2" x-model="form.content_goal"
+                placeholder="thought leadership, company updates, personal brand, hiring..."></textarea>
+        </div>
+        <div class="form-group">
+            <label>Which topics should posts cover?</label>
+            <template x-for="t in topicOptions" :key="t">
+                <label style="font-weight: normal;">
+                    <input type="checkbox" :value="t" x-model="form.top_topics"> <span x-text="t"></span>
+                </label>
+            </template>
+        </div>
+        <div class="form-group">
+            <label>Any topics to avoid entirely? <span class="muted">(comma-separated)</span></label>
+            <input type="text" x-model="avoidRaw">
+        </div>
+        <div class="form-group">
+            <label>Post length</label>
+            <select x-model="form.preferred_length">
+                <option value="short">Short (100-150 words)</option>
+                <option value="medium">Medium (200-300 words)</option>
+                <option value="long">Long (400+ words)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Tone</label>
+            <select x-model="form.tone">
+                <option>Formal</option><option>Conversational</option>
+                <option>Inspirational</option><option>Direct</option><option>Mixed</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Step 3: Posting Schedule -->
+    <div x-show="step === 3">
+        <h2>Posting schedule</h2>
+        <div class="form-group">
+            <label>How often do you want to post?</label>
+            <select x-model="form.post_frequency">
+                <option value="daily">Daily</option>
+                <option value="twice_weekly">2x per week</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Biweekly</option>
+                <option value="custom">Custom</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Preferred days</label>
+            <template x-for="d in dayOptions" :key="d">
+                <label style="font-weight: normal; margin-right: 10px;">
+                    <input type="checkbox" :value="d" x-model="form.preferred_days"> <span x-text="d"></span>
+                </label>
+            </template>
+        </div>
+        <div class="form-group">
+            <label>Preferred time of day</label>
+            <input type="time" x-model="form.preferred_time">
+        </div>
+        <div class="form-group">
+            <label>Timezone</label>
+            <input type="text" x-model="form.timezone" placeholder="e.g. America/New_York">
+        </div>
+    </div>
+
+    <!-- Step 4: Approval Settings -->
+    <div x-show="step === 4">
+        <h2>Approval settings</h2>
+        <div class="form-group">
+            <label>How should GhostPro handle posting?</label>
+            <label style="font-weight: normal;">
+                <input type="radio" value="auto_post" x-model="form.posting_mode">
+                Auto-post with a 2-hour preview window
+            </label>
+            <label style="font-weight: normal;">
+                <input type="radio" value="manual_approval" x-model="form.posting_mode">
+                Manual approval required before every post
+            </label>
+        </div>
+        <div class="form-group">
+            <label>Notifications</label>
+            <label style="font-weight: normal;">
+                <input type="checkbox" x-model="form.notification_email"> Email
+            </label>
+            <label style="font-weight: normal;">
+                <input type="checkbox" x-model="form.notification_inapp"> In-app
+            </label>
+        </div>
+    </div>
+
+    <!-- Step 5: Style Calibration -->
+    <div x-show="step === 5">
+        <h2>Style calibration</h2>
+        <div class="form-group">
+            <label>Describe yourself in 2-3 sentences, the way you would on LinkedIn.</label>
+            <textarea rows="3" x-model="form.bio"></textarea>
+        </div>
+        <div class="form-group">
+            <label>How much do you use emojis professionally? (1-5)</label>
+            <select x-model.number="form.emoji_usage">
+                <option value="1">1 — never</option><option value="2">2</option>
+                <option value="3">3</option><option value="4">4</option>
+                <option value="5">5 — often</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Roughly how many hashtags do you use per post?</label>
+            <input type="text" x-model.number="form.hashtag_count" placeholder="e.g. 3">
+        </div>
+    </div>
+
+    <div x-show="error" class="flash error" x-text="error"></div>
+
+    <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button class="button secondary" x-show="step > 1" @click="step--">Back</button>
+        <span style="flex: 1;"></span>
+        <button class="button" x-show="step < total" @click="step++">Next</button>
+        <button class="button" x-show="step === total" @click="submit()" x-text="saving ? 'Saving...' : 'Finish'"></button>
+    </div>
+</div>
+
+<script>
+function onboarding() {
+    return {
+        step: 1,
+        total: 5,
+        saving: false,
+        error: '',
+        avoidRaw: '',
+        topicOptions: ['Industry news', 'Career lessons', 'Company milestones',
+                       'Product updates', 'Motivational content', 'Current events'],
+        dayOptions: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        form: {
+            name: '', title: '', company: '', industry: '', audience_description: '', age_range: '',
+            content_goal: '', top_topics: [], avoid_topics: [], preferred_length: 'medium', tone: 'Conversational',
+            post_frequency: 'weekly', preferred_days: [], preferred_time: '09:00', timezone: '',
+            posting_mode: 'manual_approval', notification_email: true, notification_inapp: true,
+            bio: '', emoji_usage: 2, hashtag_count: ''
+        },
+        async prefill() {
+            try {
+                const res = await fetch('{{ url_for("routes.onboarding_prefill") }}');
+                if (!res.ok) return;
+                const data = await res.json();
+                for (const k of ['name', 'title', 'company', 'industry', 'timezone', 'bio']) {
+                    if (data[k]) this.form[k] = data[k];
+                }
+            } catch (e) { /* prefill is best-effort */ }
+        },
+        async submit() {
+            this.saving = true;
+            this.error = '';
+            this.form.avoid_topics = this.avoidRaw.split(',').map(s => s.trim()).filter(Boolean);
+            try {
+                const res = await fetch('{{ url_for("routes.onboarding_save") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.form)
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    window.location.href = data.redirect;
+                } else {
+                    this.error = data.message || 'Could not save. Please try again.';
+                }
+            } catch (e) {
+                this.error = 'Network error. Please try again.';
+            } finally {
+                this.saving = false;
+            }
+        }
+    };
+}
+</script>
+{% endblock %}
