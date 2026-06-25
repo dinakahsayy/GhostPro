@@ -15,6 +15,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
+from ..utils.crypto import EncryptedString
+
 
 class Base(DeclarativeBase):
     pass
@@ -35,9 +37,9 @@ class User(Base):
     name = Column(String(255))
     linkedin_id = Column(String(255))  # LinkedIn member URN
 
-    # Fernet-encrypted OAuth tokens — encryption handled at the service layer.
-    linkedin_access_token = Column(Text)
-    linkedin_refresh_token = Column(Text)
+    # Fernet-encrypted at rest via EncryptedString; ORM code reads/writes plaintext.
+    linkedin_access_token = Column(EncryptedString)
+    linkedin_refresh_token = Column(EncryptedString)
     token_expires_at = Column(DateTime, nullable=True)
 
     posting_mode = Column(String(20), default='manual_approval')      # auto_post | manual_approval
