@@ -1,20 +1,205 @@
 # app/models/database.py
-# SQLAlchemy 2.x models. Tables created on import for development convenience;
-# Phase 1 will introduce Alembic and remove the implicit create_all.
+# SQLAlchemy 2.x models for GhostPro.
+#
+# Schema follows §6 of the SDLC plan. Tables are owned by Alembic
+# (see migrations/) — there is intentionally no create_all() here.
+# Build/upgrade the dev database with: alembic upgrade head
 
 import os
 from datetime import datetime
+from uuid import uuid4
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Float, Integer, String, Text, create_engine,
+    JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text,
+    create_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
 
 class Base(DeclarativeBase):
     pass
 
 
+def _uuid():
+    return str(uuid4())
+
+
+# ---------------------------------------------------------------------------
+# §6.1 Users
+# ---------------------------------------------------------------------------
+class User(Base):
+    __tablename__ = 'users'
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    email = Column(String(255), unique=True, nullable=False)
+    name = Column(String(255))
+    linkedin_id = Column(String(255))  # LinkedIn member URN
+
+    # Fernet-encrypted OAuth tokens — encryption handled at the service layer.
+    linkedin_access_token = Column(Text)
+    linkedin_refresh_token = Column(Text)
+    token_expires_at = Column(DateTime, nullable=True)
+
+    posting_mode = Column(String(20), default='manual_approval')      # auto_post | manual_approval
+    post_frequency = Column(String(20), default='weekly')             # daily|twice_weekly|weekly|biweekly|custom
+    preferred_days = Column(JSON)                                     # array of weekday strings
+    preferred_time = Column(String(5))                               # HH:MM
+    timezone = Column(String(64), default='UTC')                     # IANA tz, e.g. America/New_York
+
+    notification_email = Column(Boolean, default=True)
+    notification_inapp = Column(Boolean, default=True)
+    onboarding_complete = Column(Boolean, default=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True)                      # soft delete (GDPR grace period)
+
+    style_profile = relationship(
+        'StyleProfile', back_populates='user', uselist=False,
+        cascade='all, delete-orphan',
+    )
+    inbox_items = relationship('ContentInbox', back_populates='user', cascade='all, delete-orphan')
+    followed_sources = relationship('FollowedSource', back_populates='user', cascade='all, delete-orphan')
+    posts = relationship('Post', back_populates='user', cascade='all, delete-orphan')
+    scheduled_jobs = relationship('ScheduledJob', back_populates='user', cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f"<User(id={self.id}, email={self.email})>"
+
+
+# ---------------------------------------------------------------------------
+# §6.2 Style Profiles
+# ---------------------------------------------------------------------------
+class StyleProfile(Base):
+    __tablename__ = 'style_profiles'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(36), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    tone = Column(String(100))
+    avg_post_length = Column(Integer)        # words
+    emoji_usage = Column(Integer)            # 1-5 scale
+    hashtag_count = Column(Float)            # average hashtags per post
+    top_topics = Column(JSON)               # array of topic strings
+    avoid_topics = Column(JSON)             # array of topics to exclude
+    preferred_length = Column(String(10))   # short | medium | long
+    raw_style_summary = Column(Text)        # GPT-generated prose used in system prompts
+    sample_posts_analyzed = Column(Integer, default=0)
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship('User', back_populates='style_profile')
+
+    def __repr__(self):
+        return f"<StyleProfile(id={self.id}, user_id={self.user_id})>"
+
+
+# ---------------------------------------------------------------------------
+# §6.3 Content Inbox
+# ---------------------------------------------------------------------------
+class ContentInbox(Base):
+    __tablename__ = 'content_inbox'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(36), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    content_type = Column(String(20), nullable=False)   # text_note|url|quote_stat|company_update|suggested
+    raw_content = Column(Text, nullable=False)
+    parsed_content = Column(Text)                       # fetched/summarized content when content_type is url
+    context_note = Column(Text)                         # optional angle/audience emphasis
+    priority = Column(String(15), default='use_whenever')  # post_soon | use_whenever
+    status = Column(String(20), default='pending')      # pending|in_progress|used|skipped|deleted
+    source_label = Column(String(255))                  # short label shown in notifications
+    suggested_by = Column(String(500))                  # source url/name if auto-discovered (else null)
+    # Logical FK to posts.id. Left unconstrained to avoid a circular FK with
+    # posts.inbox_item_id (set once the generated post is published).
+    used_in_post_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    used_at = Column(DateTime, nullable=True)
+
+    user = relationship('User', back_populates='inbox_items')
+
+    def __repr__(self):
+        return f"<ContentInbox(id={self.id}, type={self.content_type}, status={self.status})>"
+
+
+# ---------------------------------------------------------------------------
+# §6.4 Followed Sources
+# ---------------------------------------------------------------------------
+class FollowedSource(Base):
+    __tablename__ = 'followed_sources'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(36), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    source_type = Column(String(20), nullable=False)    # linkedin_page | rss_feed | website
+    source_url = Column(String(1000), nullable=False)
+    source_name = Column(String(255))
+    last_checked_at = Column(DateTime, nullable=True)
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship('User', back_populates='followed_sources')
+
+    def __repr__(self):
+        return f"<FollowedSource(id={self.id}, type={self.source_type})>"
+
+
+# ---------------------------------------------------------------------------
+# §6.5 Posts
+# ---------------------------------------------------------------------------
+class Post(Base):
+    __tablename__ = 'posts'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(36), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    content = Column(Text, nullable=False)
+    version = Column(Integer, default=1)                            # 1 = original, 2+ = regeneration
+    parent_post_id = Column(Integer, ForeignKey('posts.id'), nullable=True)  # version grouping
+    status = Column(String(20), default='draft')                   # draft|scheduled|approved|published|discarded|error
+    source_type = Column(String(20))                               # content_inbox|user_topic|news_api|seasonal
+    inbox_item_id = Column(Integer, ForeignKey('content_inbox.id'), nullable=True)
+    scheduled_at = Column(DateTime, nullable=True)
+    published_at = Column(DateTime, nullable=True)
+    posted_at = Column(DateTime, nullable=True)                    # display alias for post history
+    linkedin_post_id = Column(String(255), nullable=True)
+    source_topic = Column(Text)                                    # topic string or article URL used as inspiration
+    generation_prompt = Column(Text)                               # purged after 90 days
+    likes_count = Column(Integer, default=0)
+    comments_count = Column(Integer, default=0)
+    shares_count = Column(Integer, default=0)
+    notification_sent_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship('User', back_populates='posts')
+    parent_post = relationship('Post', remote_side=[id], backref='versions')
+    inbox_item = relationship('ContentInbox', foreign_keys=[inbox_item_id])
+
+    def __repr__(self):
+        return f"<Post(id={self.id}, status={self.status}, source={self.source_type})>"
+
+
+# ---------------------------------------------------------------------------
+# §6.6 Scheduled Jobs
+# ---------------------------------------------------------------------------
+class ScheduledJob(Base):
+    __tablename__ = 'scheduled_jobs'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(36), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    job_id = Column(String(255))               # APScheduler / Celery job identifier
+    next_run_at = Column(DateTime, nullable=True)
+    last_run_at = Column(DateTime, nullable=True)
+    status = Column(String(20), default='active')  # active | paused | error
+    retry_count = Column(Integer, default=0)       # resets to 0 on success
+
+    user = relationship('User', back_populates='scheduled_jobs')
+
+    def __repr__(self):
+        return f"<ScheduledJob(id={self.id}, status={self.status})>"
+
+
+# ---------------------------------------------------------------------------
+# Legacy prototype table.
+# Retained so the current company-name generation routes keep working until
+# they are rewritten against User/Post in the onboarding+auth PR. Slated for
+# removal then.
+# ---------------------------------------------------------------------------
 class LinkedInPost(Base):
     __tablename__ = 'linkedin_posts'
 
@@ -42,36 +227,6 @@ class LinkedInPost(Base):
         return f"<LinkedInPost(id={self.id}, company={self.company_name}, posted={self.posted})>"
 
 
-class PostTemplate(Base):
-    __tablename__ = 'post_templates'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(255), nullable=False)
-    description = Column(Text)
-    content = Column(Text, nullable=False)
-    category = Column(String(100))
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f"<PostTemplate(id={self.id}, name={self.name})>"
-
-
-class PostComment(Base):
-    __tablename__ = 'post_comments'
-
-    id = Column(Integer, primary_key=True)
-    post_id = Column(Integer)
-    comment_text = Column(Text, nullable=False)
-    reply_text = Column(Text)
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    replied = Column(Boolean, default=False)
-    sentiment = Column(String(50), nullable=True)
-
-    def __repr__(self):
-        return f"<PostComment(id={self.id}, post_id={self.post_id}, replied={self.replied})>"
-
-
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///ghostpro.db')
 engine = create_engine(DATABASE_URL, future=True)
-Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine, future=True)
