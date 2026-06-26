@@ -14,6 +14,7 @@ from flask_login import (
 )
 
 from .models.database import LinkedInPost, Session, User, db_session
+from .services.style_profile import generate_style_profile
 from .services.users import save_onboarding, upsert_user_from_userinfo
 
 routes = Blueprint('routes', __name__)
@@ -152,6 +153,16 @@ def onboarding_save():
         db_session.rollback()
         current_app.logger.exception("onboarding_save error: %s", e)
         return jsonify({'status': 'error', 'message': str(e)}), 400
+
+    # Best-effort: build an initial style summary from the onboarding answers.
+    # Never blocks onboarding completion (e.g. when no OpenAI key is configured).
+    try:
+        generate_style_profile(db_session, user, _openai())
+        db_session.commit()
+    except Exception as e:
+        db_session.rollback()
+        current_app.logger.warning("style profile generation failed: %s", e)
+
     return jsonify({'status': 'success', 'redirect': url_for('routes.dashboard')})
 
 

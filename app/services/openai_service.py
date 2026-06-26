@@ -20,18 +20,29 @@ class OpenAIService:
             self._client = OpenAI(api_key=api_key)
         return self._client
 
-    def generate_post(self, prompt_template):
+    def chat(self, system, user, model="gpt-4o", temperature=0.7, max_tokens=500):
+        """Single-turn chat completion. Returns the text, or None on any failure
+        (including a missing API key) so callers can degrade gracefully."""
         try:
             response = self._get_client().chat.completions.create(
-                model="gpt-4",
+                model=model,
                 messages=[
-                    {"role": "system", "content": "You are a professional LinkedIn content creator."},
-                    {"role": "user", "content": prompt_template},
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
                 ],
-                temperature=0.7,
-                max_tokens=500,
+                temperature=temperature,
+                max_tokens=max_tokens,
             )
             return response.choices[0].message.content
         except Exception as e:
             print(f"OpenAI error: {e}")
             return None
+
+    def generate_post(self, prompt_template):
+        return self.chat(
+            system="You are a professional LinkedIn content creator.",
+            user=prompt_template,
+            model="gpt-4",
+            temperature=0.7,
+            max_tokens=500,
+        )
