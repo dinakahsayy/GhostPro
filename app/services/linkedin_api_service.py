@@ -105,8 +105,9 @@ class LinkedInAPI:
 
             if post_response.status_code != 201:
                 self.logger.error(f"Post creation failed: {post_response.status_code}")
-                return False
-            return True
+                return None
+            # Return the created post's URN so callers can store linkedin_post_id.
+            return post_response.headers.get("x-restli-id") or "posted"
 
         except Exception as e:
             self.logger.error(f"Error creating LinkedIn post: {e}")

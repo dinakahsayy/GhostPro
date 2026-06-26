@@ -19,6 +19,7 @@ from .services.inbox import (
     create_inbox_item, get_inbox_item, inbox_item_to_dict, list_inbox_items,
     skip_inbox_item, soft_delete_inbox_item, toggle_priority, update_inbox_item,
 )
+from .services.scheduler import ensure_schedule
 from .services.style_profile import generate_style_profile
 from .services.users import save_onboarding, upsert_user_from_userinfo
 
@@ -167,6 +168,14 @@ def onboarding_save():
     except Exception as e:
         db_session.rollback()
         current_app.logger.warning("style profile generation failed: %s", e)
+
+    # Create the user's recurring post schedule (§9.1).
+    try:
+        ensure_schedule(db_session, user)
+        db_session.commit()
+    except Exception as e:
+        db_session.rollback()
+        current_app.logger.warning("schedule creation failed: %s", e)
 
     return jsonify({'status': 'success', 'redirect': url_for('routes.dashboard')})
 
