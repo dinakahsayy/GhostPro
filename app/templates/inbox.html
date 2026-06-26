@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Content Inbox{% endblock %}
+{% block content %}
+<div x-data="inbox()" x-init="load()">
+    <h1>Content Inbox</h1>
+    <p class="muted">Drop in a story, link, or stat — GhostPro turns it into a post in your voice.</p>
+
+    <div class="card">
+        <h2>Add to inbox</h2>
+        <div class="form-group">
+            <label>Type</label>
+            <select x-model="form.content_type">
+                <option value="text_note">Text note / story</option>
+                <option value="url">URL</option>
+                <option value="quote_stat">Quote or stat</option>
+                <option value="company_update">Company update</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label x-text="form.content_type === 'url' ? 'Link (https only)' : 'What happened?'"></label>
+            <textarea rows="2" x-model="form.raw_content"
+                :placeholder="form.content_type === 'url' ? 'https://...' : 'We landed our biggest client this week...'"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Optional context <span class="muted">(audience or angle to emphasize)</span></label>
+            <input type="text" x-model="form.context_note">
+        </div>
+        <div class="form-group">
+            <label style="font-weight: normal;">
+                <input type="checkbox" x-model="postSoon"> Post soon (use at the next available slot)
+            </label>
+        </div>
+        <div x-show="error" class="flash error" x-text="error"></div>
+        <button class="button" @click="submit()" x-text="saving ? 'Adding...' : 'Add to inbox'"></button>
+    </div>
+
+    <div class="card">
+        <h2>Your items</h2>
+        <template x-if="items.length === 0">
+            <p class="muted">Nothing here yet — add your first story above.</p>
+        </template>
+        <template x-for="item in items" :key="item.id">
+            <div style="border-bottom: 1px solid #eee; padding: 12px 0;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <strong x-text="item.source_label"></strong>
+                    <span class="muted" style="font-size: 12px;"
+                          x-text="'· ' + item.content_type"></span>
+                    <span style="font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #eef;"
+                          x-text="item.priority"></span>
+                    <span style="font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #efe;"
+                          x-text="item.status"></span>
+                    <span style="flex: 1;"></span>
+                    <template x-if="item.status === 'pending'">
+                        <span>
+                            <a href="#" @click.prevent="prioritize(item)">toggle priority</a> ·
+                            <a href="#" @click.prevent="skip(item)">skip</a> ·
+                            <a href="#" @click.prevent="remove(item)">delete</a>
+                        </span>
+                    </template>
+                </div>
+                <template x-if="item.context_note">
+                    <p class="muted" style="margin: 4px 0 0;" x-text="'Angle: ' + item.context_note"></p>
+                </template>
+            </div>
+        </template>
+    </div>
+</div>
+
+<script>
+function inbox() {
+    return {
+        items: [],
+        saving: false,
+        error: '',
+        postSoon: false,
+        form: { content_type: 'text_note', raw_content: '', context_note: '' },
+        async load() {
+            const res = await fetch('{{ url_for("routes.inbox") }}?format=json');
+            this.items = await res.json();
+        },
+        async submit() {
+            this.error = '';
+            if (!this.form.raw_content.trim()) { this.error = 'Please enter something to add.'; return; }
+            this.saving = true;
+            try {
+                const res = await fetch('{{ url_for("routes.inbox_create") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...this.form, priority: this.postSoon ? 'post_soon' : 'use_whenever' })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    this.form.raw_content = ''; this.form.context_note = ''; this.postSoon = false;
+                    await this.load();
+                } else {
+                    this.error = data.message || 'Could not add item.';
+                }
+            } catch (e) {
+                this.error = 'Network error. Please try again.';
+            } finally {
+                this.saving = false;
+            }
+        },
+        async act(url, method = 'POST') {
+            await fetch(url, { method });
+            await this.load();
+        },
+        prioritize(item) { this.act(`/inbox/${item.id}/prioritize`); },
+        skip(item)       { this.act(`/inbox/${item.id}/skip`); },
+        remove(item)     { this.act(`/inbox/${item.id}`, 'DELETE'); },
+    };
+}
+</script>
+{% endblock %}

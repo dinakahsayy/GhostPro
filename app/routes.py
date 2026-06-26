@@ -14,6 +14,10 @@ from flask_login import (
 )
 
 from .models.database import LinkedInPost, Session, User, db_session
+from .services.inbox import (
+    create_inbox_item, get_inbox_item, inbox_item_to_dict, list_inbox_items,
+    skip_inbox_item, soft_delete_inbox_item, toggle_priority, update_inbox_item,
+)
 from .services.style_profile import generate_style_profile
 from .services.users import save_onboarding, upsert_user_from_userinfo
 
@@ -175,6 +179,103 @@ def dashboard():
     if not current_user.onboarding_complete:
         return redirect(url_for('routes.onboarding'))
     return render_template('dashboard.html', user=current_user)
+
+
+# ---------------------------------------------------------------------------
+# Content Inbox (§7.3)
+# ---------------------------------------------------------------------------
+@routes.route('/inbox', methods=['GET'])
+@login_required
+def inbox():
+    """List view. Returns JSON when ?format=json, otherwise the page."""
+    if request.args.get('format') == 'json':
+        items = list_inbox_items(
+            db_session, current_user,
+            status=request.args.get('status'),
+            priority=request.args.get('priority'),
+        )
+        return jsonify([inbox_item_to_dict(i) for i in items])
+    return render_template('inbox.html')
+
+
+@routes.route('/inbox', methods=['POST'])
+@login_required
+def inbox_create():
+    data = request.get_json(silent=True) or request.form.to_dict()
+    try:
+        item = create_inbox_item(
+            db_session, current_user,
+            content_type=data.get('content_type'),
+            raw_content=data.get('raw_content'),
+            priority=data.get('priority', 'use_whenever'),
+            context_note=data.get('context_note'),
+        )
+        db_session.commit()
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    except Exception as e:
+        db_session.rollback()
+        current_app.logger.exception("inbox_create error: %s", e)
+        return jsonify({'status': 'error', 'message': 'Could not save item'}), 500
+    return jsonify({'status': 'success', 'item': inbox_item_to_dict(item)}), 201
+
+
+@routes.route('/inbox/<int:item_id>', methods=['GET'])
+@login_required
+def inbox_get(item_id):
+    item = get_inbox_item(db_session, current_user, item_id)
+    if not item:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    return jsonify(inbox_item_to_dict(item))
+
+
+@routes.route('/inbox/<int:item_id>', methods=['PUT'])
+@login_required
+def inbox_update(item_id):
+    item = get_inbox_item(db_session, current_user, item_id)
+    if not item:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    try:
+        update_inbox_item(db_session, item, request.get_json(silent=True) or {})
+        db_session.commit()
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    return jsonify({'status': 'success', 'item': inbox_item_to_dict(item)})
+
+
+@routes.route('/inbox/<int:item_id>/prioritize', methods=['POST'])
+@login_required
+def inbox_prioritize(item_id):
+    item = get_inbox_item(db_session, current_user, item_id)
+    if not item:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    toggle_priority(item)
+    db_session.commit()
+    return jsonify({'status': 'success', 'item': inbox_item_to_dict(item)})
+
+
+@routes.route('/inbox/<int:item_id>/skip', methods=['POST'])
+@login_required
+def inbox_skip(item_id):
+    item = get_inbox_item(db_session, current_user, item_id)
+    if not item:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    skip_inbox_item(item)
+    db_session.commit()
+    return jsonify({'status': 'success', 'item': inbox_item_to_dict(item)})
+
+
+@routes.route('/inbox/<int:item_id>', methods=['DELETE'])
+@login_required
+def inbox_delete(item_id):
+    item = get_inbox_item(db_session, current_user, item_id)
+    if not item:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    soft_delete_inbox_item(item)
+    db_session.commit()
+    return jsonify({'status': 'success'})
 
 
 @routes.route('/generate')

@@ -31,9 +31,41 @@
     </div>
     {% endif %}
 
-    <div class="card">
-        <h2>Next up</h2>
-        <p class="muted">The Content Inbox and scheduled posts land in Phase 2.</p>
-        <a class="button" href="{{ url_for('routes.generate') }}">Generate a post</a>
+    <div class="card" x-data="quickAdd()">
+        <h2>Quick add to inbox</h2>
+        <p class="muted">Something happen at work? Drop it in — we&#39;ll turn it into a post.</p>
+        <div class="form-group">
+            <textarea rows="2" x-model="note" placeholder="We landed our biggest client this week..."></textarea>
+        </div>
+        <div x-show="message" class="flash" :class="ok ? 'success' : 'error'" x-text="message"></div>
+        <button class="button" @click="add()" x-text="saving ? 'Adding...' : 'Add to inbox'"></button>
+        <a class="button secondary" href="{{ url_for('routes.inbox') }}">Open inbox</a>
     </div>
+
+    <script>
+    function quickAdd() {
+        return {
+            note: '', saving: false, message: '', ok: false,
+            async add() {
+                if (!this.note.trim()) { this.ok = false; this.message = 'Please enter something first.'; return; }
+                this.saving = true; this.message = '';
+                try {
+                    const res = await fetch('{{ url_for("routes.inbox_create") }}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content_type: 'text_note', raw_content: this.note })
+                    });
+                    const data = await res.json();
+                    this.ok = data.status === 'success';
+                    this.message = this.ok ? 'Added to your inbox.' : (data.message || 'Could not add.');
+                    if (this.ok) this.note = '';
+                } catch (e) {
+                    this.ok = false; this.message = 'Network error.';
+                } finally {
+                    this.saving = false;
+                }
+            }
+        };
+    }
+    </script>
 {% endblock %}

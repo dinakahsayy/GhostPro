@@ -6,4 +6,5 @@ python-dotenv==1.0.1
 openai==1.54.4
 requests==2.32.3
 cryptography==43.0.3
+beautifulsoup4==4.12.3
 pytest==8.3.3
