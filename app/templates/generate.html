@@ -1,72 +1,79 @@
 {% extends "base.html" %}
-{% block title %}Generate Posts{% endblock %}
+{% block title %}Generate{% endblock %}
 {% block content %}
-    <h1>Generate LinkedIn Post</h1>
+<div x-data="generator()" x-init="loadPosts()">
+    <h1>Generate a post</h1>
+    <p class="muted">
+        GhostPro pulls from your Content Inbox first, then your topics — and writes
+        in your voice. Generated posts start as drafts.
+    </p>
 
-    <div class="form-group">
-        <label for="company-name">Company Name:</label>
-        <input type="text" id="company-name" placeholder="Enter your company name">
+    <div class="card">
+        <button class="button" @click="generate()" x-text="generating ? 'Generating...' : 'Generate a post'"></button>
+        <a class="button secondary" href="{{ url_for('routes.inbox') }}">Add to inbox first</a>
+        <div x-show="error" class="flash error" style="margin-top: 14px;" x-text="error"></div>
+
+        <template x-if="latest">
+            <div style="margin-top: 18px; border-top: 1px solid #eee; padding-top: 14px;">
+                <p class="muted" style="font-size: 13px;">
+                    New draft · source: <span x-text="latest.source_type"></span> ·
+                    <span x-text="latest.char_count"></span> / 3000 chars
+                </p>
+                <div style="white-space: pre-wrap;" x-text="latest.content"></div>
+            </div>
+        </template>
     </div>
 
-    <div class="form-group">
-        <label for="business-type">Business Type:</label>
-        <select id="business-type">
-            <option value="saas">SaaS</option>
-            <option value="consulting">Consulting</option>
-            <option value="ecommerce">E-Commerce</option>
-            <option value="tech">Technology</option>
-            <option value="other">Other</option>
-        </select>
+    <div class="card">
+        <h2>Recent drafts</h2>
+        <template x-if="posts.length === 0">
+            <p class="muted">No posts yet — generate your first one above.</p>
+        </template>
+        <template x-for="p in posts" :key="p.id">
+            <div style="border-bottom: 1px solid #eee; padding: 12px 0;">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #efe;"
+                          x-text="p.status"></span>
+                    <span class="muted" style="font-size: 12px;" x-text="p.source_type"></span>
+                    <span class="muted" style="font-size: 12px;" x-text="p.char_count + ' chars'"></span>
+                </div>
+                <div style="white-space: pre-wrap; margin-top: 6px;"
+                     x-text="p.content.length > 280 ? p.content.slice(0, 280) + '…' : p.content"></div>
+            </div>
+        </template>
     </div>
+</div>
 
-    <div class="form-group">
-        <label for="tone">Tone of Voice:</label>
-        <select id="tone">
-            <option value="professional">Professional & Formal</option>
-            <option value="casual">Casual & Friendly</option>
-            <option value="innovative">Innovative & Tech-Forward</option>
-            <option value="authoritative">Authoritative & Expert</option>
-        </select>
-    </div>
-
-    <div class="form-group">
-        <label for="about-us">About Your Company:</label>
-        <textarea id="about-us" rows="4" placeholder="Tell us about your company, products, and target audience..."></textarea>
-    </div>
-
-    <button class="button" onclick="generatePost()">Generate Post</button>
-    <div id="result" class="result"></div>
-
-    <script>
-        function generatePost() {
-            const data = {
-                companyName: document.getElementById('company-name').value,
-                businessType: document.getElementById('business-type').value,
-                tone: document.getElementById('tone').value,
-                aboutUs: document.getElementById('about-us').value
-            };
-
-            fetch('/generate-post', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if(data.status === 'success') {
-                    document.getElementById('result').innerHTML = 
-                        `<h3>Generated Post:</h3><p>${data.post}</p>`;
+<script>
+function generator() {
+    return {
+        posts: [],
+        latest: null,
+        generating: false,
+        error: '',
+        async loadPosts() {
+            const res = await fetch('{{ url_for("routes.posts_list") }}');
+            this.posts = await res.json();
+        },
+        async generate() {
+            this.generating = true;
+            this.error = '';
+            try {
+                const res = await fetch('{{ url_for("routes.posts_generate") }}', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    this.latest = data.post;
+                    await this.loadPosts();
                 } else {
-                    document.getElementById('result').innerHTML = 
-                        `<p>Error: ${data.message}</p>`;
+                    this.error = data.message || 'Could not generate a post.';
                 }
-            })
-            .catch(error => {
-                document.getElementById('result').innerHTML = 
-                    `<p>Error: ${error}</p>`;
-            });
+            } catch (e) {
+                this.error = 'Network error. Please try again.';
+            } finally {
+                this.generating = false;
+            }
         }
-    </script>
+    };
+}
+</script>
 {% endblock %}

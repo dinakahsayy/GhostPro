@@ -13,7 +13,8 @@ from flask_login import (
     current_user, login_required, login_user, logout_user,
 )
 
-from .models.database import LinkedInPost, Session, User, db_session
+from .models.database import LinkedInPost, Post, Session, User, db_session
+from .services.generation import generate_post_for_user, post_to_dict
 from .services.inbox import (
     create_inbox_item, get_inbox_item, inbox_item_to_dict, list_inbox_items,
     skip_inbox_item, soft_delete_inbox_item, toggle_priority, update_inbox_item,
@@ -298,65 +299,49 @@ def templates():
     return render_template('templates.html')
 
 
-@routes.route('/generate-post', methods=['POST'])
+# ---------------------------------------------------------------------------
+# Posts — new generation pipeline (§7.4, §8)
+# ---------------------------------------------------------------------------
+@routes.route('/posts/generate', methods=['POST'])
 @login_required
-def generate_post():
+def posts_generate():
+    """Generate a draft post from the user's highest-priority source (inbox first)."""
     try:
-        data = request.get_json() or {}
-        company_name = data.get('companyName', '')
-        business_type = data.get('businessType', '')
-        tone = data.get('tone', '')
-        about_us = data.get('aboutUs', '')
-
-        prompt_template = f"""
-        Create a LinkedIn post for {company_name}, a {business_type} company.
-
-        About the company:
-        {about_us}
-
-        The post should:
-        - Use a {tone} tone of voice
-        - Focus on business value and ROI
-        - Include specific industry metrics or statistics
-        - Address business decision-makers
-        - Include relevant business hashtags
-        - Keep emojis minimal and professional
-        - End with a clear business-focused call to action
-
-        Key themes to include:
-        - Business efficiency
-        - Industry expertise
-        - Value proposition
-        - Market leadership
-        """
-
-        generated_post = _openai().generate_post(prompt_template)
-        if not generated_post:
+        user = db_session.get(User, current_user.get_id())
+        post = generate_post_for_user(db_session, user, _openai())
+        if post is None:
+            db_session.rollback()
             return jsonify({
                 'status': 'error',
-                'message': 'Failed to generate post - check server logs for details',
-            }), 500
-
-        with Session() as session_db:
-            new_post = LinkedInPost(
-                content=generated_post,
-                timestamp=datetime.utcnow(),
-                posted=False,
-                company_name=company_name,
-                business_type=business_type,
-                tone=tone,
-            )
-            session_db.add(new_post)
-            session_db.commit()
-            return jsonify({
-                'status': 'success',
-                'post': generated_post,
-                'post_id': new_post.id,
-            })
-
+                'message': 'Could not generate a post — check that an OpenAI API key is configured.',
+            }), 502
+        db_session.commit()
+        return jsonify({'status': 'success', 'post': post_to_dict(post)}), 201
     except Exception as e:
-        current_app.logger.exception("generate_post error: %s", e)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        db_session.rollback()
+        current_app.logger.exception("posts_generate error: %s", e)
+        return jsonify({'status': 'error', 'message': 'Could not generate a post'}), 500
+
+
+@routes.route('/posts', methods=['GET'])
+@login_required
+def posts_list():
+    posts = (
+        db_session.query(Post)
+        .filter(Post.user_id == current_user.get_id())
+        .order_by(Post.created_at.desc())
+        .all()
+    )
+    return jsonify([post_to_dict(p) for p in posts])
+
+
+@routes.route('/posts/<int:post_id>', methods=['GET'])
+@login_required
+def posts_get(post_id):
+    post = db_session.get(Post, post_id)
+    if post is None or post.user_id != current_user.get_id():
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    return jsonify(post_to_dict(post))
 
 
 @routes.route('/post-to-linkedin/<int:post_id>', methods=['POST'])
