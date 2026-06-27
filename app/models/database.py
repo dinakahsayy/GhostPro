@@ -75,6 +75,7 @@ class User(Base, UserMixin):
     followed_sources = relationship('FollowedSource', back_populates='user', cascade='all, delete-orphan')
     posts = relationship('Post', back_populates='user', cascade='all, delete-orphan')
     scheduled_jobs = relationship('ScheduledJob', back_populates='user', cascade='all, delete-orphan')
+    notifications = relationship('Notification', back_populates='user', cascade='all, delete-orphan')
 
     @property
     def is_active(self):
@@ -212,6 +213,30 @@ class ScheduledJob(Base):
 
     def __repr__(self):
         return f"<ScheduledJob(id={self.id}, status={self.status})>"
+
+
+# ---------------------------------------------------------------------------
+# In-app notifications (notification center / bell). The §2.1 in-app center
+# implies this table, which the §6 schema did not define.
+# ---------------------------------------------------------------------------
+class Notification(Base):
+    __tablename__ = 'notifications'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(String(36), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    post_id = Column(Integer, ForeignKey('posts.id'), nullable=True)
+    type = Column(String(30))              # preview | published | error | info
+    title = Column(String(255))
+    body = Column(Text)
+    source_label = Column(String(255))     # e.g. "Based on your story about X"
+    read = Column(Boolean, default=False)
+    read_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship('User', back_populates='notifications')
+
+    def __repr__(self):
+        return f"<Notification(id={self.id}, type={self.type}, read={self.read})>"
 
 
 # ---------------------------------------------------------------------------

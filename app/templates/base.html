@@ -40,6 +40,12 @@
             <a href="{{ url_for('routes.templates') }}">Templates</a>
         {% endif %}
         <span class="spacer"></span>
+        {% if current_user.is_authenticated and current_user.onboarding_complete %}
+            <a href="{{ url_for('routes.notifications') }}" x-data="bell()" x-init="poll()">
+                🔔<span x-show="count > 0" x-text="count"
+                       style="background:#e02; color:#fff; border-radius:10px; padding:0 6px; font-size:12px; margin-left:2px;"></span>
+            </a>
+        {% endif %}
         {% if current_user.is_authenticated %}
             <a href="{{ url_for('routes.logout') }}">Sign out</a>
         {% endif %}
@@ -53,5 +59,25 @@
         {% endwith %}
         {% block content %}{% endblock %}
     </div>
+
+    {% if current_user.is_authenticated and current_user.onboarding_complete %}
+    <script>
+    function bell() {
+        return {
+            count: 0,
+            async refresh() {
+                try {
+                    const res = await fetch('{{ url_for("routes.notifications_unread_count") }}');
+                    if (res.ok) this.count = (await res.json()).unread;
+                } catch (e) { /* ignore */ }
+            },
+            poll() {
+                this.refresh();
+                setInterval(() => this.refresh(), 30000);
+            }
+        };
+    }
+    </script>
+    {% endif %}
 </body>
 </html>

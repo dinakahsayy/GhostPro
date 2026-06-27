@@ -13,8 +13,9 @@ from flask_login import (
     current_user, login_required, login_user, logout_user,
 )
 
-from .models.database import LinkedInPost, Post, Session, User, db_session
+from .models.database import LinkedInPost, Notification, Post, Session, User, db_session
 from .services.generation import generate_post_for_user, post_to_dict
+from .services.notifications import notification_to_dict
 from .services.inbox import (
     create_inbox_item, get_inbox_item, inbox_item_to_dict, list_inbox_items,
     skip_inbox_item, soft_delete_inbox_item, toggle_priority, update_inbox_item,
@@ -351,6 +352,56 @@ def posts_get(post_id):
     if post is None or post.user_id != current_user.get_id():
         return jsonify({'status': 'error', 'message': 'Not found'}), 404
     return jsonify(post_to_dict(post))
+
+
+# ---------------------------------------------------------------------------
+# Notifications (in-app center / bell)
+# ---------------------------------------------------------------------------
+def _user_notifications_query():
+    return (
+        db_session.query(Notification)
+        .filter(Notification.user_id == current_user.get_id())
+        .order_by(Notification.created_at.desc())
+    )
+
+
+@routes.route('/notifications', methods=['GET'])
+@login_required
+def notifications():
+    if request.args.get('format') == 'json':
+        items = _user_notifications_query().all()
+        return jsonify([notification_to_dict(n) for n in items])
+    return render_template('notifications.html')
+
+
+@routes.route('/notifications/unread_count', methods=['GET'])
+@login_required
+def notifications_unread_count():
+    count = _user_notifications_query().filter(Notification.read.is_(False)).count()
+    return jsonify({'unread': count})
+
+
+@routes.route('/notifications/<int:note_id>/read', methods=['POST'])
+@login_required
+def notifications_mark_read(note_id):
+    note = db_session.get(Notification, note_id)
+    if note is None or note.user_id != current_user.get_id():
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    note.read = True
+    note.read_at = datetime.utcnow()
+    db_session.commit()
+    return jsonify({'status': 'success'})
+
+
+@routes.route('/notifications/read_all', methods=['POST'])
+@login_required
+def notifications_read_all():
+    now = datetime.utcnow()
+    for note in _user_notifications_query().filter(Notification.read.is_(False)).all():
+        note.read = True
+        note.read_at = now
+    db_session.commit()
+    return jsonify({'status': 'success'})
 
 
 @routes.route('/post-to-linkedin/<int:post_id>', methods=['POST'])

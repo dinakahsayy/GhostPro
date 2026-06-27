@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 from ..models.database import ContentInbox, Post, ScheduledJob, Session, User
 from .generation import generate_post_for_user
+from .notifications import notify_failed, notify_preview, notify_published
 
 PREVIEW_WINDOW = timedelta(hours=2)      # §9.1 auto-post preview countdown
 RETRY_BACKOFF = timedelta(minutes=5)     # §9.1 publish retry backoff
@@ -124,6 +125,9 @@ def generate_scheduled_post(session, user, openai_service, now=None):
         post.scheduled_at = now + PREVIEW_WINDOW
     else:
         post.scheduled_at = None
+
+    session.flush()  # assign post.id before building the notification link
+    notify_preview(session, user, post)
     return post
 
 
@@ -174,6 +178,7 @@ def publish_due_posts(session, linkedin_api, now=None):
         token = user.linkedin_access_token
         if not token:
             post.status = "error"  # §9.4 — needs reconnect
+            notify_failed(session, user, post)
             continue
 
         result = linkedin_api.create_post(token, post.content)
@@ -190,6 +195,7 @@ def publish_due_posts(session, linkedin_api, now=None):
                     item.used_in_post_id = post.id
             if job:
                 job.retry_count = 0
+            notify_published(session, user, post)
             published.append(post)
         else:
             # Retry up to MAX_PUBLISH_RETRIES with backoff, then give up (§9.1).
@@ -202,6 +208,7 @@ def publish_due_posts(session, linkedin_api, now=None):
                         item.status = "pending"  # return to queue
                 if job:
                     job.retry_count = 0
+                notify_failed(session, user, post)
             else:
                 if job:
                     job.retry_count = retries

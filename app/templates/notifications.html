@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div x-data="notificationCenter()" x-init="load()">
+    <div style="display: flex; align-items: center;">
+        <h1 style="flex: 1;">Notifications</h1>
+        <button class="button secondary" @click="markAll()" x-show="items.some(n => !n.read)">
+            Mark all read
+        </button>
+    </div>
+
+    <div class="card">
+        <template x-if="items.length === 0">
+            <p class="muted">No notifications yet.</p>
+        </template>
+        <template x-for="n in items" :key="n.id">
+            <div style="border-bottom: 1px solid #eee; padding: 12px 0;"
+                 :style="n.read ? 'opacity: 0.6;' : ''">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <strong x-text="n.title"></strong>
+                    <span style="font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #eef;"
+                          x-text="n.type"></span>
+                    <span style="flex: 1;"></span>
+                    <a href="#" x-show="!n.read" @click.prevent="markRead(n)">mark read</a>
+                </div>
+                <p class="muted" style="margin: 4px 0 0;" x-show="n.source_label" x-text="n.source_label"></p>
+                <p style="margin: 6px 0 0; white-space: pre-wrap;" x-text="n.body"></p>
+            </div>
+        </template>
+    </div>
+</div>
+
+<script>
+function notificationCenter() {
+    return {
+        items: [],
+        async load() {
+            const res = await fetch('{{ url_for("routes.notifications") }}?format=json');
+            this.items = await res.json();
+        },
+        async markRead(n) {
+            await fetch(`/notifications/${n.id}/read`, { method: 'POST' });
+            n.read = true;
+        },
+        async markAll() {
+            await fetch('{{ url_for("routes.notifications_read_all") }}', { method: 'POST' });
+            this.items.forEach(n => n.read = true);
+        }
+    };
+}
+</script>
+{% endblock %}
