@@ -124,7 +124,7 @@ def dev_login():
     return redirect(url_for('routes.dashboard'))
 
 
-@routes.route('/auth/logout', methods=['POST', 'GET'])
+@routes.route('/auth/logout', methods=['POST'])
 def logout():
     logout_user()
     flash('Signed out.', 'success')

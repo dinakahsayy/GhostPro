@@ -3,7 +3,24 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>GhostPro LinkedIn AI - {% block title %}{% endblock %}</title>
+    <!-- Attach the CSRF token to every same-origin mutating fetch (runs before Alpine). -->
+    <script>
+    (function () {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        var token = meta ? meta.getAttribute('content') : '';
+        var origFetch = window.fetch;
+        window.fetch = function (resource, options) {
+            options = options || {};
+            var method = (options.method || 'GET').toUpperCase();
+            if (['GET', 'HEAD', 'OPTIONS', 'TRACE'].indexOf(method) === -1) {
+                options.headers = Object.assign({}, options.headers, { 'X-CSRFToken': token });
+            }
+            return origFetch(resource, options);
+        };
+    })();
+    </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         :root { --li-blue: #0077B5; --li-blue-dark: #005582; }
@@ -15,6 +32,9 @@
                    gap: 6px; flex-wrap: wrap; }
         .nav-bar a { color: white; text-decoration: none; padding: 8px 14px; border-radius: 5px; }
         .nav-bar a:hover { background-color: var(--li-blue-dark); }
+        .navlink-btn { color: white; background: none; border: none; cursor: pointer; font: inherit;
+                       padding: 8px 14px; border-radius: 5px; }
+        .navlink-btn:hover { background-color: var(--li-blue-dark); }
         .nav-bar .brand { font-weight: bold; font-size: 18px; margin-right: 8px; }
         .nav-bar .spacer { flex: 1; }
         .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
@@ -62,7 +82,10 @@
             </a>
         {% endif %}
         {% if current_user.is_authenticated %}
-            <a href="{{ url_for('routes.logout') }}">Sign out</a>
+            <form method="post" action="{{ url_for('routes.logout') }}" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="navlink-btn">Sign out</button>
+            </form>
         {% endif %}
     </div>
 

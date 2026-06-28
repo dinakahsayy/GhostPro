@@ -6,8 +6,10 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 from flask_login import LoginManager
+from flask_wtf import CSRFProtect
 
 login_manager = LoginManager()
+csrf = CSRFProtect()
 
 
 def create_app():
@@ -30,6 +32,10 @@ def create_app():
         client_secret=app.config['LINKEDIN_CLIENT_SECRET'],
         redirect_uri=app.config['LINKEDIN_REDIRECT_URI'],
     )
+
+    # CSRF protection for all state-changing requests. JSON/fetch callers send
+    # the token via the X-CSRFToken header (wired in base.html).
+    csrf.init_app(app)
 
     # Authentication
     from .models.database import User, db_session

@@ -28,7 +28,11 @@ def clean_db():
 
 @pytest.fixture
 def app():
-    return create_app()
+    app = create_app()
+    # CSRF is exercised in test_csrf.py with a dedicated app; disable it for the
+    # JSON-fetch route tests that don't carry a token.
+    app.config["WTF_CSRF_ENABLED"] = False
+    return app
 
 
 @pytest.fixture
