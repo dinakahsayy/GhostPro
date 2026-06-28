@@ -113,6 +113,18 @@ def notify_failed(session, user, post):
     _notify(session, user, post, "error", title, body, label)
 
 
+def notify_suggestions(session, user, count):
+    """In-app only (§9.2): new suggested items are waiting for review."""
+    if not user.notification_inapp:
+        return
+    plural = "s" if count != 1 else ""
+    create_inapp_notification(
+        session, user, type="suggestion",
+        title=f"{count} new suggested item{plural} to review",
+        body="New content from your followed sources is waiting in your Suggestions tab.",
+    )
+
+
 def notification_to_dict(note):
     return {
         "id": note.id,

@@ -21,8 +21,13 @@ from .services.posts import (
     regenerate_post, reschedule_post, restore_version,
 )
 from .services.inbox import (
-    create_inbox_item, get_inbox_item, inbox_item_to_dict, list_inbox_items,
-    skip_inbox_item, soft_delete_inbox_item, toggle_priority, update_inbox_item,
+    confirm_suggestion, create_inbox_item, dismiss_suggestion, get_inbox_item,
+    inbox_item_to_dict, list_inbox_items, list_suggestions, skip_inbox_item,
+    soft_delete_inbox_item, toggle_priority, update_inbox_item,
+)
+from .services.sources import (
+    create_source, delete_source, get_source, list_sources, source_to_dict,
+    toggle_source,
 )
 from .services.scheduler import ensure_schedule
 from .services.style_profile import generate_style_profile
@@ -291,6 +296,83 @@ def inbox_delete(item_id):
     soft_delete_inbox_item(item)
     db_session.commit()
     return jsonify({'status': 'success'})
+
+
+# --- Suggestions (auto-discovered items, §7.3) -----------------------------
+@routes.route('/inbox/suggestions', methods=['GET'])
+@login_required
+def inbox_suggestions():
+    items = list_suggestions(db_session, current_user)
+    return jsonify([inbox_item_to_dict(i) for i in items])
+
+
+@routes.route('/inbox/suggestions/<int:item_id>/confirm', methods=['POST'])
+@login_required
+def inbox_suggestion_confirm(item_id):
+    item = get_inbox_item(db_session, current_user, item_id)
+    if not item or item.status != 'pending_confirmation':
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    confirm_suggestion(item)
+    db_session.commit()
+    return jsonify({'status': 'success', 'item': inbox_item_to_dict(item)})
+
+
+@routes.route('/inbox/suggestions/<int:item_id>/dismiss', methods=['POST'])
+@login_required
+def inbox_suggestion_dismiss(item_id):
+    item = get_inbox_item(db_session, current_user, item_id)
+    if not item or item.status != 'pending_confirmation':
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    dismiss_suggestion(item)
+    db_session.commit()
+    return jsonify({'status': 'success'})
+
+
+# --- Followed sources (§7.3) -----------------------------------------------
+@routes.route('/inbox/sources', methods=['GET'])
+@login_required
+def inbox_sources():
+    return jsonify([source_to_dict(s) for s in list_sources(db_session, current_user)])
+
+
+@routes.route('/inbox/sources', methods=['POST'])
+@login_required
+def inbox_sources_create():
+    data = request.get_json(silent=True) or request.form.to_dict()
+    try:
+        source = create_source(
+            db_session, current_user,
+            source_type=data.get('source_type'),
+            source_url=data.get('source_url'),
+            source_name=data.get('source_name'),
+        )
+        db_session.commit()
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    return jsonify({'status': 'success', 'source': source_to_dict(source)}), 201
+
+
+@routes.route('/inbox/sources/<int:source_id>', methods=['DELETE'])
+@login_required
+def inbox_sources_delete(source_id):
+    source = get_source(db_session, current_user, source_id)
+    if not source:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    delete_source(db_session, source)
+    db_session.commit()
+    return jsonify({'status': 'success'})
+
+
+@routes.route('/inbox/sources/<int:source_id>/toggle', methods=['POST'])
+@login_required
+def inbox_sources_toggle(source_id):
+    source = get_source(db_session, current_user, source_id)
+    if not source:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    toggle_source(source)
+    db_session.commit()
+    return jsonify({'status': 'success', 'source': source_to_dict(source)})
 
 
 @routes.route('/generate')

@@ -6,11 +6,13 @@ from datetime import datetime
 from ..models.database import ContentInbox
 from ..utils.url_fetch import fetch_url_text
 
-# 'suggested' is reserved for the Phase 3 source watcher, not manual submission.
+# 'suggested' is reserved for the source watcher, not manual submission.
 CONTENT_TYPES = {"text_note", "url", "quote_stat", "company_update"}
 PRIORITIES = {"post_soon", "use_whenever"}
-# Statuses shown in the inbox history; 'deleted' is hidden.
+# Statuses shown in the inbox history; pending_confirmation/dismissed/deleted hidden.
 VISIBLE_STATUSES = {"pending", "in_progress", "used", "skipped"}
+# Auto-discovered items await a one-tap confirm before entering the queue (§9.2).
+SUGGESTION_PENDING = "pending_confirmation"
 
 
 def _make_source_label(content_type, raw_content, parsed_content):
@@ -117,6 +119,30 @@ def skip_inbox_item(item):
 
 def soft_delete_inbox_item(item):
     item.status = "deleted"
+    return item
+
+
+def list_suggestions(session, user):
+    """Auto-discovered items from followed sources awaiting confirmation (§7.3)."""
+    return (
+        session.query(ContentInbox)
+        .filter(
+            ContentInbox.user_id == user.get_id(),
+            ContentInbox.status == SUGGESTION_PENDING,
+        )
+        .order_by(ContentInbox.created_at.desc())
+        .all()
+    )
+
+
+def confirm_suggestion(item):
+    """Move a suggested item into the normal pending queue."""
+    item.status = "pending"
+    return item
+
+
+def dismiss_suggestion(item):
+    item.status = "dismissed"
     return item
 
 

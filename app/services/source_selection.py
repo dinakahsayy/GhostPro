@@ -40,9 +40,9 @@ def select_source(session, user):
     for priority in ("post_soon", "use_whenever"):
         item = _oldest_pending(session, user, priority)
         if item is not None:
-            material = item.raw_content
-            if item.content_type == "url" and item.parsed_content:
-                material = item.parsed_content
+            # Prefer fetched article text (URL items and confirmed suggestions),
+            # falling back to the raw note/quote.
+            material = item.parsed_content or item.raw_content
             return Source(
                 source_type="content_inbox",
                 text=material,

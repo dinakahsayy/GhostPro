@@ -64,6 +64,60 @@
             </div>
         </template>
     </div>
+
+    <div class="card" x-show="suggestions.length > 0">
+        <h2>Suggestions</h2>
+        <p class="muted">New from your followed sources — confirm to add to your queue.</p>
+        <template x-for="s in suggestions" :key="s.id">
+            <div style="border-bottom: 1px solid #eee; padding: 12px 0;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <strong x-text="s.source_label"></strong>
+                    <span style="flex: 1;"></span>
+                    <a href="#" @click.prevent="confirm(s)">confirm</a> ·
+                    <a href="#" @click.prevent="dismiss(s)">dismiss</a>
+                </div>
+                <p class="muted" style="margin: 4px 0 0; font-size: 12px;" x-text="s.suggested_by"></p>
+            </div>
+        </template>
+    </div>
+
+    <div class="card">
+        <h2>Followed sources</h2>
+        <p class="muted">Company blogs, RSS feeds, or pages GhostPro watches for you.</p>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">
+            <div>
+                <label>Type</label>
+                <select x-model="sourceForm.source_type">
+                    <option value="rss_feed">RSS feed</option>
+                    <option value="website">Website</option>
+                    <option value="linkedin_page">LinkedIn page</option>
+                </select>
+            </div>
+            <div style="flex: 1; min-width: 220px;">
+                <label>URL (https)</label>
+                <input type="text" x-model="sourceForm.source_url" placeholder="https://blog.example.com/feed">
+            </div>
+            <div>
+                <label>Name (optional)</label>
+                <input type="text" x-model="sourceForm.source_name">
+            </div>
+            <button class="button" @click="addSource()">Add source</button>
+        </div>
+        <div x-show="sourceError" class="flash error" style="margin-top: 10px;" x-text="sourceError"></div>
+
+        <template x-for="src in sources" :key="src.id">
+            <div style="display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #eee; padding: 10px 0;">
+                <strong x-text="src.source_name || src.source_url"></strong>
+                <span class="muted" style="font-size: 12px;" x-text="'· ' + src.source_type"></span>
+                <span style="font-size: 12px; padding: 2px 8px; border-radius: 10px;"
+                      :style="src.active ? 'background:#efe;' : 'background:#eee;'"
+                      x-text="src.active ? 'active' : 'paused'"></span>
+                <span style="flex: 1;"></span>
+                <a href="#" @click.prevent="toggleSource(src)" x-text="src.active ? 'pause' : 'resume'"></a> ·
+                <a href="#" @click.prevent="removeSource(src)">remove</a>
+            </div>
+        </template>
+    </div>
 </div>
 
 <script>
@@ -74,9 +128,19 @@ function inbox() {
         error: '',
         postSoon: false,
         form: { content_type: 'text_note', raw_content: '', context_note: '' },
+        suggestions: [],
+        sources: [],
+        sourceForm: { source_type: 'rss_feed', source_url: '', source_name: '' },
+        sourceError: '',
         async load() {
-            const res = await fetch('{{ url_for("routes.inbox") }}?format=json');
-            this.items = await res.json();
+            const [items, suggestions, sources] = await Promise.all([
+                fetch('{{ url_for("routes.inbox") }}?format=json').then(r => r.json()),
+                fetch('{{ url_for("routes.inbox_suggestions") }}').then(r => r.json()),
+                fetch('{{ url_for("routes.inbox_sources") }}').then(r => r.json()),
+            ]);
+            this.items = items;
+            this.suggestions = suggestions;
+            this.sources = sources;
         },
         async submit() {
             this.error = '';
@@ -108,6 +172,26 @@ function inbox() {
         prioritize(item) { this.act(`/inbox/${item.id}/prioritize`); },
         skip(item)       { this.act(`/inbox/${item.id}/skip`); },
         remove(item)     { this.act(`/inbox/${item.id}`, 'DELETE'); },
+        confirm(s)       { this.act(`/inbox/suggestions/${s.id}/confirm`); },
+        dismiss(s)       { this.act(`/inbox/suggestions/${s.id}/dismiss`); },
+        toggleSource(src){ this.act(`/inbox/sources/${src.id}/toggle`); },
+        removeSource(src){ this.act(`/inbox/sources/${src.id}`, 'DELETE'); },
+        async addSource() {
+            this.sourceError = '';
+            if (!this.sourceForm.source_url.trim()) { this.sourceError = 'Enter a URL.'; return; }
+            const res = await fetch('{{ url_for("routes.inbox_sources_create") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(this.sourceForm)
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                this.sourceForm.source_url = ''; this.sourceForm.source_name = '';
+                await this.load();
+            } else {
+                this.sourceError = data.message || 'Could not add source.';
+            }
+        },
     };
 }
 </script>

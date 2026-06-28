@@ -245,6 +245,24 @@ def start_scheduler(app):
                       "interval", seconds=interval, id="generation_tick")
     scheduler.add_job(_tick(publish_due_posts, "linkedin_api"),
                       "interval", seconds=interval, id="publish_tick")
+
+    # Source watcher runs on its own (daily by default) cadence.
+    from .source_watcher import run_source_watch
+
+    watch_interval = int(os.getenv("SOURCE_WATCH_INTERVAL_SECONDS", "86400"))
+
+    def _watch_tick():
+        with app.app_context():
+            with Session() as session:
+                try:
+                    run_source_watch(session)
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                    app.logger.exception("source watch tick failed")
+
+    scheduler.add_job(_watch_tick, "interval", seconds=watch_interval, id="source_watch_tick")
+
     scheduler.start()
     app.extensions["scheduler"] = scheduler
     return scheduler
