@@ -30,6 +30,7 @@ from .services.sources import (
     create_source, delete_source, get_source, list_sources, source_to_dict,
     toggle_source,
 )
+from .services.account import soft_delete_account
 from .services.scheduler import ensure_schedule, pause_schedule, resume_schedule
 from .services.settings import settings_to_dict, update_settings
 from .services.style_profile import generate_style_profile
@@ -445,6 +446,17 @@ def settings_resume():
     resume_schedule(db_session, user)
     db_session.commit()
     return jsonify({'status': 'success', 'settings': settings_to_dict(db_session, user)})
+
+
+@routes.route('/account', methods=['DELETE'])
+@login_required
+def account_delete():
+    """GDPR deletion: soft-delete now; data is hard-purged after the grace period."""
+    user = db_session.get(User, current_user.get_id())
+    soft_delete_account(db_session, user)
+    db_session.commit()
+    logout_user()
+    return jsonify({'status': 'success'})
 
 
 # ---------------------------------------------------------------------------

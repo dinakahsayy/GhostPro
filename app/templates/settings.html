@@ -67,6 +67,15 @@
 
             <p x-show="message" class="flash" :class="ok ? 'success' : 'error'" x-text="message"></p>
             <button class="button" @click="save()" x-text="saving ? 'Saving...' : 'Save settings'"></button>
+
+            <div class="card" style="border-color:#f0c0c0; margin-top:24px;">
+                <h2 style="color:#b42318;">Danger zone</h2>
+                <p class="muted">
+                    Deleting your account stops all posting and permanently erases your
+                    profile, posts, inbox, sources, and notifications after a 30-day grace period.
+                </p>
+                <button class="button" style="background:#b42318;" @click="deleteAccount()">Delete my account</button>
+            </div>
         </div>
     </template>
 </div>
@@ -114,6 +123,11 @@ function settings() {
         async setSchedule(action) {
             const data = await fetch(`/settings/${action}`, { method: 'POST' }).then(r => r.json());
             if (data.settings) this.applySettings(data.settings);
+        },
+        async deleteAccount() {
+            if (!confirm('Delete your account? This cannot be undone after the grace period.')) return;
+            const res = await fetch('{{ url_for("routes.account_delete") }}', { method: 'DELETE' });
+            if (res.ok) window.location.href = '/';
         }
     };
 }

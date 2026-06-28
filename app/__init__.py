@@ -45,7 +45,11 @@ def create_app():
 
     @login_manager.user_loader
     def load_user(user_id):
-        return db_session.get(User, user_id)
+        user = db_session.get(User, user_id)
+        # Soft-deleted accounts behave as logged out.
+        if user is None or user.deleted_at is not None:
+            return None
+        return user
 
     @app.teardown_appcontext
     def remove_db_session(exc=None):

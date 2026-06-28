@@ -147,7 +147,7 @@ def run_due_generations(session, openai_service, now=None):
     created = []
     for job in jobs:
         user = session.get(User, job.user_id)
-        if user is None or not user.onboarding_complete:
+        if user is None or user.deleted_at is not None or not user.onboarding_complete:
             continue
         post = generate_scheduled_post(session, user, openai_service, now=now)
         if post is not None:
@@ -173,7 +173,7 @@ def publish_due_posts(session, linkedin_api, openai_service=None, now=None):
     published = []
     for post in due:
         user = session.get(User, post.user_id)
-        if user is None:
+        if user is None or user.deleted_at is not None:
             continue
         # 'scheduled' posts only auto-publish in auto-post mode; 'approved' posts
         # were explicitly OK'd by the user and publish in any mode.
@@ -277,6 +277,21 @@ def start_scheduler(app):
                     app.logger.exception("source watch tick failed")
 
     scheduler.add_job(_watch_tick, "interval", seconds=watch_interval, id="source_watch_tick")
+
+    # Daily purge of accounts whose deletion grace period has elapsed.
+    from .account import purge_expired_accounts
+
+    def _purge_tick():
+        with app.app_context():
+            with Session() as session:
+                try:
+                    purge_expired_accounts(session)
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                    app.logger.exception("account purge tick failed")
+
+    scheduler.add_job(_purge_tick, "interval", seconds=watch_interval, id="account_purge_tick")
 
     scheduler.start()
     app.extensions["scheduler"] = scheduler
