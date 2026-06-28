@@ -7,6 +7,7 @@
 
 import os
 from datetime import datetime
+from ..utils.timeutil import utcnow
 
 from ..models.database import ContentInbox, Notification
 
@@ -38,7 +39,7 @@ def create_inapp_notification(session, user, type, title, body, source_label=Non
         body=body,
         source_label=source_label,
         read=False,
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     session.add(note)
     return note

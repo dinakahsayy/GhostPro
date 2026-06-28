@@ -5,6 +5,7 @@
 # SSRF-guarded fetcher. Items are de-duplicated by link so nothing repeats.
 
 from datetime import datetime
+from ..utils.timeutil import utcnow
 
 from ..models.database import ContentInbox, FollowedSource, User
 from ..utils.url_fetch import fetch_url_text
@@ -74,7 +75,7 @@ def _create_suggestion(session, source, data, now):
 def run_source_watch(session, now=None, feed_parser=None, fetcher=None):
     """Poll every active followed source, create suggestions, notify users.
     Returns {user_id: new_count}."""
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     feed_parser = feed_parser or _default_feed_parser
     fetcher = fetcher or fetch_url_text
 

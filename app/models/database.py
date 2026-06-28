@@ -7,6 +7,7 @@
 
 import os
 from datetime import datetime
+from ..utils.timeutil import utcnow
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -64,7 +65,7 @@ class User(Base, UserMixin):
     notification_inapp = Column(Boolean, default=True)
     onboarding_complete = Column(Boolean, default=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     deleted_at = Column(DateTime, nullable=True)                      # soft delete (GDPR grace period)
 
     style_profile = relationship(
@@ -104,7 +105,7 @@ class StyleProfile(Base):
     content_goal = Column(Text)             # what the user wants their presence to communicate (§3.2)
     raw_style_summary = Column(Text)        # GPT-generated prose used in system prompts
     sample_posts_analyzed = Column(Integer, default=0)
-    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_updated = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     user = relationship('User', back_populates='style_profile')
 
@@ -131,7 +132,7 @@ class ContentInbox(Base):
     # Logical FK to posts.id. Left unconstrained to avoid a circular FK with
     # posts.inbox_item_id (set once the generated post is published).
     used_in_post_id = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     used_at = Column(DateTime, nullable=True)
 
     user = relationship('User', back_populates='inbox_items')
@@ -153,7 +154,7 @@ class FollowedSource(Base):
     source_name = Column(String(255))
     last_checked_at = Column(DateTime, nullable=True)
     active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship('User', back_populates='followed_sources')
 
@@ -185,7 +186,7 @@ class Post(Base):
     comments_count = Column(Integer, default=0)
     shares_count = Column(Integer, default=0)
     notification_sent_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship('User', back_populates='posts')
     parent_post = relationship('Post', remote_side=[id], backref='versions')
@@ -231,7 +232,7 @@ class Notification(Base):
     source_label = Column(String(255))     # e.g. "Based on your story about X"
     read = Column(Boolean, default=False)
     read_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     user = relationship('User', back_populates='notifications')
 

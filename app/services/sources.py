@@ -3,6 +3,7 @@
 # feeds the source watcher polls to surface suggested inbox items.
 
 from datetime import datetime
+from ..utils.timeutil import utcnow
 
 from ..models.database import FollowedSource
 
@@ -23,7 +24,7 @@ def create_source(session, user, source_type, source_url, source_name=None):
         source_url=source_url,
         source_name=(source_name or None),
         active=True,
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     session.add(source)
     return source

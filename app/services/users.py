@@ -3,6 +3,7 @@
 # unit-tested directly against a session.
 
 from datetime import datetime, timedelta
+from ..utils.timeutil import utcnow
 
 from ..models.database import StyleProfile, User
 
@@ -46,7 +47,7 @@ def upsert_user_from_userinfo(session, userinfo, token_data):
         user.linkedin_refresh_token = token_data.get("refresh_token")
     expires_in = token_data.get("expires_in")
     if expires_in:
-        user.token_expires_at = datetime.utcnow() + timedelta(seconds=int(expires_in))
+        user.token_expires_at = utcnow() + timedelta(seconds=int(expires_in))
 
     return user
 

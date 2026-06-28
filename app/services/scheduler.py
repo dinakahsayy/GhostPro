@@ -9,6 +9,7 @@
 
 import os
 from datetime import datetime, time, timedelta, timezone
+from ..utils.timeutil import utcnow
 from zoneinfo import ZoneInfo
 
 from ..models.database import ContentInbox, Post, ScheduledJob, Session, User
@@ -59,7 +60,7 @@ def _parse_time(value):
 def compute_next_run(user, now=None, last_run=None):
     """Next post time as a naive-UTC datetime, honoring frequency, preferred
     days/time, and timezone. `last_run` enforces the per-frequency minimum gap."""
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     try:
         tz = ZoneInfo(user.timezone or "UTC")
     except Exception:
@@ -116,7 +117,7 @@ def resume_schedule(session, user, now=None):
 def generate_scheduled_post(session, user, openai_service, now=None):
     """Generate one post for a scheduled slot. Auto-post mode starts the 2-hour
     preview countdown; manual mode leaves it queued for explicit approval."""
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     post = generate_post_for_user(session, user, openai_service)
     if post is None:
         return None  # inbox empty / OpenAI failure — slot skipped (§9.4)
@@ -135,7 +136,7 @@ def generate_scheduled_post(session, user, openai_service, now=None):
 
 def run_due_generations(session, openai_service, now=None):
     """Generation tick: generate posts for every active schedule that is due."""
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     jobs = (
         session.query(ScheduledJob)
         .filter(
@@ -161,7 +162,7 @@ def run_due_generations(session, openai_service, now=None):
 def publish_due_posts(session, linkedin_api, openai_service=None, now=None):
     """Publish tick: push due posts to LinkedIn. Auto-post 'scheduled' posts go
     once their 2-hour window elapses; user-'approved' posts go regardless of mode."""
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     due = (
         session.query(Post)
         .filter(

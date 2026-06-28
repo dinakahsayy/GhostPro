@@ -2,6 +2,7 @@
 # Content Inbox operations (§4, §7.3), kept out of the route layer for testability.
 
 from datetime import datetime
+from ..utils.timeutil import utcnow
 
 from ..models.database import ContentInbox
 from ..utils.url_fetch import fetch_url_text
@@ -56,7 +57,7 @@ def create_inbox_item(session, user, content_type, raw_content,
         priority=priority,
         status="pending",
         source_label=_make_source_label(content_type, raw_content, parsed_content),
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     session.add(item)
     return item

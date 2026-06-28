@@ -5,6 +5,7 @@
 # notifications, and the encrypted tokens) via the User relationships.
 
 from datetime import datetime, timedelta
+from ..utils.timeutil import utcnow
 
 from ..models.database import ScheduledJob, User
 
@@ -13,7 +14,7 @@ GRACE_DAYS = 30
 
 def soft_delete_account(session, user, now=None):
     """Mark the account for deletion and stop its schedule immediately."""
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     user.deleted_at = now
     job = session.query(ScheduledJob).filter_by(user_id=user.get_id()).first()
     if job:
@@ -28,7 +29,7 @@ def hard_delete_user(session, user):
 
 def purge_expired_accounts(session, now=None, grace_days=GRACE_DAYS):
     """Hard-delete accounts whose grace period has elapsed. Returns the count."""
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     cutoff = now - timedelta(days=grace_days)
     expired = (
         session.query(User)

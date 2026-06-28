@@ -5,6 +5,7 @@
 
 import re
 from datetime import datetime
+from ..utils.timeutil import utcnow
 
 from ..models.database import Post, StyleProfile
 
@@ -127,7 +128,7 @@ def generate_style_profile(session, user, openai_service, posts=None):
 
     if summary:
         profile.raw_style_summary = summary
-    profile.last_updated = datetime.utcnow()
+    profile.last_updated = utcnow()
     return profile
 
 

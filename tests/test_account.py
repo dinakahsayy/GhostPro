@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.models.database import (
     ContentInbox, FollowedSource, Notification, Post, ScheduledJob, Session,
@@ -82,7 +82,7 @@ def test_scheduler_skips_soft_deleted_user():
         # Re-activate the job to prove the user-level guard (not just pause) skips it.
         job.status = "active"
         s.commit()
-        created = run_due_generations(s, FakeOpenAI(), now=datetime.utcnow())
+        created = run_due_generations(s, FakeOpenAI(), now=datetime.now(timezone.utc).replace(tzinfo=None))
         assert created == []
 
 

@@ -4,12 +4,13 @@
 # can be obtained, so callers can mark the post errored and prompt a reconnect.
 
 from datetime import datetime, timedelta
+from ..utils.timeutil import utcnow
 
 REFRESH_BUFFER = timedelta(minutes=5)
 
 
 def ensure_valid_token(session, user, linkedin_api, now=None):
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     token = user.linkedin_access_token
     expires_at = user.token_expires_at
 

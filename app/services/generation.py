@@ -4,6 +4,7 @@
 # Post. Consumed inbox items are flipped to 'in_progress'.
 
 from datetime import datetime
+from ..utils.timeutil import utcnow
 
 from ..models.database import Post
 from .source_selection import select_source
@@ -96,7 +97,7 @@ def generate_post_for_user(session, user, openai_service, source=None):
         inbox_item_id=source.inbox_item.id if source.inbox_item else None,
         source_topic=source.text if source.source_type != "content_inbox" else None,
         generation_prompt=generation_prompt,
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     session.add(post)
 

@@ -3,6 +3,7 @@
 # edit, discard, reschedule, regenerate (with version history), and restore.
 
 from datetime import datetime
+from ..utils.timeutil import utcnow
 
 from ..models.database import ContentInbox, Post
 from .generation import compose_post_content, post_process, post_to_dict
@@ -72,7 +73,7 @@ def approve_post(post, now=None):
     """Approve a queued post to go live — the publish tick picks it up promptly."""
     if post.status in _TERMINAL:
         raise ValueError("This post cannot be approved")
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     post.status = "approved"
     post.scheduled_at = now
     return post
@@ -82,7 +83,7 @@ def publish_post_now(session, user, post, linkedin_api, openai_service=None, now
     """Publish immediately to LinkedIn. Returns (ok, error)."""
     if post.status == "published":
         return False, "Already published"
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     token = ensure_valid_token(session, user, linkedin_api, now=now)
     if not token:
         post.status = "error"
@@ -112,7 +113,7 @@ def regenerate_post(session, user, post, openai_service, now=None):
     restart the preview window (§9.3). Returns the new Post or None on failure."""
     if post.status in _TERMINAL:
         raise ValueError("This post can no longer be regenerated")
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     source = _source_from_post(session, post)
     content, generation_prompt = compose_post_content(user, source, openai_service)
     if content is None:
@@ -146,7 +147,7 @@ def regenerate_post(session, user, post, openai_service, now=None):
 
 def restore_version(session, user, post, version_id, now=None):
     """Restore a previous version's content as a new active version."""
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     target = session.get(Post, version_id)
     if target is None or _root_id(target) != _root_id(post) or target.user_id != user.get_id():
         raise ValueError("That version does not belong to this post")

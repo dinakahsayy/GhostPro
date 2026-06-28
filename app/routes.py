@@ -3,6 +3,7 @@
 
 import os
 from datetime import datetime
+from .utils.timeutil import utcnow
 from uuid import uuid4
 
 from flask import (
@@ -666,7 +667,7 @@ def notifications_mark_read(note_id):
     if note is None or note.user_id != current_user.get_id():
         return jsonify({'status': 'error', 'message': 'Not found'}), 404
     note.read = True
-    note.read_at = datetime.utcnow()
+    note.read_at = utcnow()
     db_session.commit()
     return jsonify({'status': 'success'})
 
@@ -674,7 +675,7 @@ def notifications_mark_read(note_id):
 @routes.route('/notifications/read_all', methods=['POST'])
 @login_required
 def notifications_read_all():
-    now = datetime.utcnow()
+    now = utcnow()
     for note in _user_notifications_query().filter(Notification.read.is_(False)).all():
         note.read = True
         note.read_at = now
