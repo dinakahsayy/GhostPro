@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from ..models.database import ContentInbox, Post, ScheduledJob, Session, User
 from .generation import generate_post_for_user
 from .notifications import notify_failed, notify_preview, notify_published
+from .style_profile import maybe_refresh_style_profile
 
 PREVIEW_WINDOW = timedelta(hours=2)      # §9.1 auto-post preview countdown
 RETRY_BACKOFF = timedelta(minutes=5)     # §9.1 publish retry backoff
@@ -156,7 +157,7 @@ def run_due_generations(session, openai_service, now=None):
     return created
 
 
-def publish_due_posts(session, linkedin_api, now=None):
+def publish_due_posts(session, linkedin_api, openai_service=None, now=None):
     """Publish tick: push due posts to LinkedIn. Auto-post 'scheduled' posts go
     once their 2-hour window elapses; user-'approved' posts go regardless of mode."""
     now = now or datetime.utcnow()
@@ -201,6 +202,8 @@ def publish_due_posts(session, linkedin_api, now=None):
             if job:
                 job.retry_count = 0
             notify_published(session, user, post)
+            if openai_service is not None:
+                maybe_refresh_style_profile(session, user, openai_service)
             published.append(post)
         else:
             # Retry up to MAX_PUBLISH_RETRIES with backoff, then give up (§9.1).
@@ -243,8 +246,20 @@ def start_scheduler(app):
 
     scheduler.add_job(_tick(run_due_generations, "openai_service"),
                       "interval", seconds=interval, id="generation_tick")
-    scheduler.add_job(_tick(publish_due_posts, "linkedin_api"),
-                      "interval", seconds=interval, id="publish_tick")
+
+    def _publish_tick():
+        with app.app_context():
+            with Session() as session:
+                try:
+                    publish_due_posts(
+                        session, app.extensions["linkedin_api"], app.extensions["openai_service"]
+                    )
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                    app.logger.exception("publish tick failed")
+
+    scheduler.add_job(_publish_tick, "interval", seconds=interval, id="publish_tick")
 
     # Source watcher runs on its own (daily by default) cadence.
     from .source_watcher import run_source_watch

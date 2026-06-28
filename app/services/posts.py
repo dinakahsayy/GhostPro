@@ -9,6 +9,7 @@ from .generation import compose_post_content, post_process, post_to_dict
 from .notifications import notify_failed, notify_preview, notify_published
 from .scheduler import PREVIEW_WINDOW
 from .source_selection import Source
+from .style_profile import maybe_refresh_style_profile
 
 # Statuses past which a post can no longer be edited/approved/etc.
 _TERMINAL = {"published", "discarded"}
@@ -76,7 +77,7 @@ def approve_post(post, now=None):
     return post
 
 
-def publish_post_now(session, user, post, linkedin_api, now=None):
+def publish_post_now(session, user, post, linkedin_api, openai_service=None, now=None):
     """Publish immediately to LinkedIn. Returns (ok, error)."""
     if post.status == "published":
         return False, "Already published"
@@ -100,6 +101,8 @@ def publish_post_now(session, user, post, linkedin_api, now=None):
         item.used_at = now
         item.used_in_post_id = post.id
     notify_published(session, user, post)
+    if openai_service is not None:
+        maybe_refresh_style_profile(session, user, openai_service)
     return True, None
 
 

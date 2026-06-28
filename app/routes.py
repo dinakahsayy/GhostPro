@@ -498,7 +498,7 @@ def posts_publish(post_id):
     if post is None:
         return jsonify({'status': 'error', 'message': 'Not found'}), 404
     user = db_session.get(User, current_user.get_id())
-    ok, error = publish_post_now(db_session, user, post, _linkedin())
+    ok, error = publish_post_now(db_session, user, post, _linkedin(), _openai())
     db_session.commit()
     if not ok:
         return jsonify({'status': 'error', 'message': error}), 502

@@ -6,7 +6,11 @@
 import re
 from datetime import datetime
 
-from ..models.database import StyleProfile
+from ..models.database import Post, StyleProfile
+
+# Re-analyze the user's voice after every N published posts (§8.3).
+REFRESH_EVERY = 10
+_MAX_ANALYZED = 50
 
 # Common emoji blocks (variation selectors deliberately excluded so a base glyph
 # followed by U+FE0F is counted once, not twice).
@@ -125,3 +129,25 @@ def generate_style_profile(session, user, openai_service, posts=None):
         profile.raw_style_summary = summary
     profile.last_updated = datetime.utcnow()
     return profile
+
+
+def maybe_refresh_style_profile(session, user, openai_service):
+    """After every REFRESH_EVERY published posts, re-derive the style profile
+    from the user's own published content (§8.3). Returns the profile or None."""
+    count = (
+        session.query(Post)
+        .filter(Post.user_id == user.get_id(), Post.status == "published")
+        .count()
+    )
+    if count == 0 or count % REFRESH_EVERY != 0:
+        return None
+
+    posts = (
+        session.query(Post)
+        .filter(Post.user_id == user.get_id(), Post.status == "published")
+        .order_by(Post.published_at.desc())
+        .limit(_MAX_ANALYZED)
+        .all()
+    )
+    contents = [p.content for p in posts if p.content]
+    return generate_style_profile(session, user, openai_service, posts=contents)
