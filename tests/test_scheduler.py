@@ -7,7 +7,7 @@ from app.services.scheduler import (
 )
 
 
-class FakeOpenAI:
+class FakeLLM:
     def chat(self, system, user, **kwargs):
         return "A generated scheduled post. #update"
 
@@ -98,7 +98,7 @@ def test_auto_mode_starts_preview_window():
                            priority="post_soon", status="pending"))
         s.commit()
         now = datetime(2026, 6, 24, 12, 0)
-        post = generate_scheduled_post(s, user, FakeOpenAI(), now=now)
+        post = generate_scheduled_post(s, user, FakeLLM(), now=now)
         assert post.status == "scheduled"
         assert post.scheduled_at == now + PREVIEW_WINDOW
         assert post.notification_sent_at == now
@@ -110,7 +110,7 @@ def test_manual_mode_has_no_auto_publish_time():
         s.add(ContentInbox(user=user, content_type="text_note", raw_content="news",
                            priority="post_soon", status="pending"))
         s.commit()
-        post = generate_scheduled_post(s, user, FakeOpenAI(), now=datetime(2026, 6, 24, 12, 0))
+        post = generate_scheduled_post(s, user, FakeLLM(), now=datetime(2026, 6, 24, 12, 0))
         assert post.status == "scheduled"
         assert post.scheduled_at is None
 
@@ -129,7 +129,7 @@ def test_run_due_generations_fires_and_advances():
         s.commit()
 
         now = datetime(2026, 6, 24, 12, 0)
-        created = run_due_generations(s, FakeOpenAI(), now=now)
+        created = run_due_generations(s, FakeLLM(), now=now)
         s.commit()
 
         assert len(created) == 1
@@ -145,7 +145,7 @@ def test_run_due_skips_not_yet_due():
         s.add(ScheduledJob(user=user, status="active",
                            next_run_at=datetime(2026, 6, 25, 9, 0)))
         s.commit()
-        created = run_due_generations(s, FakeOpenAI(), now=datetime(2026, 6, 24, 12, 0))
+        created = run_due_generations(s, FakeLLM(), now=datetime(2026, 6, 24, 12, 0))
         assert created == []
 
 

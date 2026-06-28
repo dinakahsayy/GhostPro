@@ -1,6 +1,6 @@
 # app/services/generation.py
 # Post generation pipeline (§8.2): builds the system/user prompts from the user's
-# style profile + selected source, calls GPT-4o, post-processes, and stores a draft
+# style profile + selected source, calls Claude, post-processes, and stores a draft
 # Post. Consumed inbox items are flipped to 'in_progress'.
 
 from datetime import datetime
@@ -56,7 +56,7 @@ def post_process(text):
     return text
 
 
-def compose_post_content(user, source, openai_service):
+def compose_post_content(user, source, llm_service):
     """Build the prompts for a source and return (content, generation_prompt), or
     (None, prompt) if the model produced nothing. No DB side effects — reused by
     both first-time generation and regeneration."""
@@ -66,8 +66,8 @@ def compose_post_content(user, source, openai_service):
     length = (profile.preferred_length if profile else None) or "medium"
     max_tokens = _LENGTH_TOKENS.get(length, 450)
 
-    content = openai_service.chat(
-        system_prompt, user_prompt, model="gpt-4o", temperature=0.75, max_tokens=max_tokens
+    content = llm_service.chat(
+        system_prompt, user_prompt, temperature=0.75, max_tokens=max_tokens
     )
     generation_prompt = f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}"
     if not content:
@@ -75,16 +75,16 @@ def compose_post_content(user, source, openai_service):
     return post_process(content), generation_prompt
 
 
-def generate_post_for_user(session, user, openai_service, source=None):
+def generate_post_for_user(session, user, llm_service, source=None):
     """Generate a draft Post for the user from the highest-priority source.
 
-    Returns the Post, or None if generation failed (e.g. no OpenAI key) — in which
+    Returns the Post, or None if generation failed (e.g. no Claude key) — in which
     case no inbox item is consumed and no row is created.
     """
     if source is None:
         source = select_source(session, user)
 
-    content, generation_prompt = compose_post_content(user, source, openai_service)
+    content, generation_prompt = compose_post_content(user, source, llm_service)
     if content is None:
         return None
 

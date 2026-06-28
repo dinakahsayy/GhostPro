@@ -8,7 +8,7 @@ from app.services.notifications import (
 from app.services.scheduler import generate_scheduled_post
 
 
-class FakeOpenAI:
+class FakeLLM:
     def chat(self, system, user, **kwargs):
         return "A scheduled post body."
 
@@ -95,7 +95,7 @@ def test_scheduled_generation_creates_preview_notification():
                            source_label="big news", priority="post_soon", status="pending"))
         s.commit()
 
-        post = generate_scheduled_post(s, user, FakeOpenAI(), now=datetime(2026, 6, 24, 12, 0))
+        post = generate_scheduled_post(s, user, FakeLLM(), now=datetime(2026, 6, 24, 12, 0))
         s.commit()
 
         note = s.query(Notification).filter_by(user_id=user.id, type="preview").one()

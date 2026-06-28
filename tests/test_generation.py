@@ -8,7 +8,7 @@ from app.services.generation import (
 from app.services.source_selection import Source, select_source
 
 
-class FakeOpenAI:
+class FakeLLM:
     def __init__(self, reply="Generated post body. #growth"):
         self.reply = reply
         self.calls = []
@@ -124,7 +124,7 @@ def test_post_process_trims_and_caps():
 # --- orchestration ---------------------------------------------------------
 
 def test_generate_creates_draft_and_marks_inbox_in_progress():
-    fake = FakeOpenAI()
+    fake = FakeLLM()
     with Session() as s:
         user = _user(s, name="Sam", title="CTO", industry="Fintech")
         item = ContentInbox(user=user, content_type="text_note", raw_content="shipped v2",
@@ -145,7 +145,7 @@ def test_generate_creates_draft_and_marks_inbox_in_progress():
 
 
 def test_generate_returns_none_and_consumes_nothing_on_failure():
-    class NullOpenAI:
+    class NullLLM:
         def chat(self, *a, **k):
             return None
 
@@ -156,7 +156,7 @@ def test_generate_returns_none_and_consumes_nothing_on_failure():
         s.add(item)
         s.commit()
 
-        assert generate_post_for_user(s, user, NullOpenAI()) is None
+        assert generate_post_for_user(s, user, NullLLM()) is None
         s.commit()
         # Nothing created, inbox item untouched.
         assert s.query(Post).count() == 0
@@ -171,7 +171,7 @@ def test_posts_routes_require_login(client):
 
 
 def test_generate_endpoint_creates_post(client):
-    client.application.extensions["openai_service"] = FakeOpenAI("Fresh draft body")
+    client.application.extensions["llm_service"] = FakeLLM("Fresh draft body")
     client.get("/dev/login")
     client.post("/inbox", json={"content_type": "text_note", "raw_content": "milestone hit"})
 
@@ -186,11 +186,11 @@ def test_generate_endpoint_creates_post(client):
 
 
 def test_generate_endpoint_reports_failure(client):
-    class NullOpenAI:
+    class NullLLM:
         def chat(self, *a, **k):
             return None
 
-    client.application.extensions["openai_service"] = NullOpenAI()
+    client.application.extensions["llm_service"] = NullLLM()
     client.get("/dev/login")
     resp = client.post("/posts/generate")
     assert resp.status_code == 502

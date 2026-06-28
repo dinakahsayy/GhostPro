@@ -4,8 +4,8 @@ from app.services.style_profile import (
 )
 
 
-class FakeOpenAI:
-    """Stand-in for OpenAIService.chat — records the last call, returns a canned value."""
+class FakeLLM:
+    """Stand-in for LLMService.chat — records the last call, returns a canned value."""
     def __init__(self, reply="A concise, conversational style with light emoji use."):
         self.reply = reply
         self.calls = []
@@ -55,7 +55,7 @@ def test_emoji_scale_boundaries():
 # --- generate_style_profile ------------------------------------------------
 
 def test_generate_from_posts_sets_metrics_and_summary():
-    fake = FakeOpenAI()
+    fake = FakeLLM()
     with Session() as s:
         user = User(email="poster@example.com", name="Sam", title="CTO", industry="Fintech")
         s.add(user)
@@ -73,7 +73,7 @@ def test_generate_from_posts_sets_metrics_and_summary():
 
 
 def test_generate_from_onboarding_when_no_posts():
-    fake = FakeOpenAI(reply="Warm, story-driven, minimal hashtags.")
+    fake = FakeLLM(reply="Warm, story-driven, minimal hashtags.")
     with Session() as s:
         user = User(email="newbie@example.com", title="Designer", industry="UX")
         s.add(user)
@@ -87,8 +87,8 @@ def test_generate_from_onboarding_when_no_posts():
         assert "no LinkedIn post history" in fake.calls[0]["user"]
 
 
-def test_generate_is_resilient_to_openai_failure():
-    class NullOpenAI:
+def test_generate_is_resilient_to_llm_failure():
+    class NullLLM:
         def chat(self, system, user, **kwargs):
             return None
 
@@ -96,7 +96,7 @@ def test_generate_is_resilient_to_openai_failure():
         user = User(email="nokey@example.com")
         s.add(user)
         s.flush()
-        profile = generate_style_profile(s, user, NullOpenAI(), posts=["Hello world"])
+        profile = generate_style_profile(s, user, NullLLM(), posts=["Hello world"])
         s.commit()
 
         # No summary, but metrics + timestamp still recorded; no exception raised.

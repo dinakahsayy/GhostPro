@@ -18,7 +18,7 @@ Copy `.env.example` and fill in:
 | `SECRET_KEY` | Flask sessions + token-encryption key derivation (32-byte random) |
 | `FERNET_KEY` | Optional dedicated key for LinkedIn token encryption |
 | `DATABASE_URL` | Postgres connection string |
-| `OPENAI_API_KEY` | Post generation (GPT-4o) |
+| `ANTHROPIC_API_KEY` | Post generation (Claude) |
 | `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` / `LINKEDIN_REDIRECT_URI` | OAuth |
 | `SENDGRID_API_KEY` / `NOTIFICATION_FROM_EMAIL` | Email notifications |
 | `NEWSAPI_API_KEY` | Industry-news fallback source |

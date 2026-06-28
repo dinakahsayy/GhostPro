@@ -19,7 +19,7 @@ plan. The full product loop works end to end:
   quotes, or company updates; `post_soon` / `use_whenever` priority.
 - **Followed sources** — RSS feeds / sites polled daily; new items surface as
   one-tap **suggestions**.
-- **Generation pipeline (GPT-4o)** — source priority: inbox → topics → industry
+- **Generation pipeline (Claude)** — source priority: inbox → topics → industry
   news (NewsAPI) → seasonal; writes in the user's voice within LinkedIn limits.
 - **Scheduler** — per-user cadence (frequency / days / time / timezone); auto-post
   with a 2-hour preview window, or manual approval; publish retries with backoff.
@@ -35,7 +35,7 @@ plan. The full product loop works end to end:
 ## Tech stack
 
 Flask · SQLAlchemy 2.x + Alembic · Flask-Login · Flask-WTF · APScheduler
-(Celery + Redis optional) · OpenAI GPT-4o · SendGrid · feedparser · Jinja2 +
+(Celery + Redis optional) · Anthropic Claude · SendGrid · feedparser · Jinja2 +
 Alpine.js. SQLite in dev, PostgreSQL in production.
 
 ## Quick start
@@ -54,7 +54,7 @@ In development, visit `/` and use **Dev login** (enabled when
 ### Required configuration
 
 `SECRET_KEY` and `DATABASE_URL` are enough to boot. For full functionality add
-`OPENAI_API_KEY`, the `LINKEDIN_*` OAuth values, and optionally
+`ANTHROPIC_API_KEY`, the `LINKEDIN_*` OAuth values, and optionally
 `SENDGRID_API_KEY` / `NEWSAPI_API_KEY` / `SENTRY_DSN`. Every integration
 degrades gracefully when its key is absent. See `.env.example` for the full list.
 

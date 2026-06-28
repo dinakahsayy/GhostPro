@@ -79,7 +79,7 @@ def approve_post(post, now=None):
     return post
 
 
-def publish_post_now(session, user, post, linkedin_api, openai_service=None, now=None):
+def publish_post_now(session, user, post, linkedin_api, llm_service=None, now=None):
     """Publish immediately to LinkedIn. Returns (ok, error)."""
     if post.status == "published":
         return False, "Already published"
@@ -103,19 +103,19 @@ def publish_post_now(session, user, post, linkedin_api, openai_service=None, now
         item.used_at = now
         item.used_in_post_id = post.id
     notify_published(session, user, post)
-    if openai_service is not None:
-        maybe_refresh_style_profile(session, user, openai_service)
+    if llm_service is not None:
+        maybe_refresh_style_profile(session, user, llm_service)
     return True, None
 
 
-def regenerate_post(session, user, post, openai_service, now=None):
+def regenerate_post(session, user, post, llm_service, now=None):
     """Create a fresh version from the same source, supersede the old one, and
     restart the preview window (§9.3). Returns the new Post or None on failure."""
     if post.status in _TERMINAL:
         raise ValueError("This post can no longer be regenerated")
     now = now or utcnow()
     source = _source_from_post(session, post)
-    content, generation_prompt = compose_post_content(user, source, openai_service)
+    content, generation_prompt = compose_post_content(user, source, llm_service)
     if content is None:
         return None
 

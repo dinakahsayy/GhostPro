@@ -40,8 +40,8 @@ from .services.users import save_onboarding, upsert_user_from_userinfo
 routes = Blueprint('routes', __name__)
 
 
-def _openai():
-    return current_app.extensions['openai_service']
+def _llm():
+    return current_app.extensions['llm_service']
 
 
 def _linkedin():
@@ -175,9 +175,9 @@ def onboarding_save():
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
     # Best-effort: build an initial style summary from the onboarding answers.
-    # Never blocks onboarding completion (e.g. when no OpenAI key is configured).
+    # Never blocks onboarding completion (e.g. when no Claude key is configured).
     try:
-        generate_style_profile(db_session, user, _openai())
+        generate_style_profile(db_session, user, _llm())
         db_session.commit()
     except Exception as e:
         db_session.rollback()
@@ -469,12 +469,12 @@ def posts_generate():
     """Generate a draft post from the user's highest-priority source (inbox first)."""
     try:
         user = db_session.get(User, current_user.get_id())
-        post = generate_post_for_user(db_session, user, _openai())
+        post = generate_post_for_user(db_session, user, _llm())
         if post is None:
             db_session.rollback()
             return jsonify({
                 'status': 'error',
-                'message': 'Could not generate a post — check that an OpenAI API key is configured.',
+                'message': 'Could not generate a post — check that an Claude API key is configured.',
             }), 502
         db_session.commit()
         return jsonify({'status': 'success', 'post': post_to_dict(post)}), 201
@@ -555,7 +555,7 @@ def posts_publish(post_id):
     if post is None:
         return jsonify({'status': 'error', 'message': 'Not found'}), 404
     user = db_session.get(User, current_user.get_id())
-    ok, error = publish_post_now(db_session, user, post, _linkedin(), _openai())
+    ok, error = publish_post_now(db_session, user, post, _linkedin(), _llm())
     db_session.commit()
     if not ok:
         return jsonify({'status': 'error', 'message': error}), 502
@@ -570,13 +570,13 @@ def posts_regenerate(post_id):
         return jsonify({'status': 'error', 'message': 'Not found'}), 404
     user = db_session.get(User, current_user.get_id())
     try:
-        new_post = regenerate_post(db_session, user, post, _openai())
+        new_post = regenerate_post(db_session, user, post, _llm())
     except ValueError as e:
         db_session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 400
     if new_post is None:
         db_session.rollback()
-        return jsonify({'status': 'error', 'message': 'Could not regenerate — check the OpenAI key.'}), 502
+        return jsonify({'status': 'error', 'message': 'Could not regenerate — check the Claude key.'}), 502
     db_session.commit()
     return jsonify({'status': 'success', 'post': post_detail_to_dict(db_session, new_post)})
 

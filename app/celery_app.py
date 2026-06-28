@@ -60,14 +60,14 @@ def _run(fn):
 @celery.task(name="ghostpro.generate_due")
 def generate_due():
     from app.services.scheduler import run_due_generations
-    _run(lambda s, app: run_due_generations(s, app.extensions["openai_service"]))
+    _run(lambda s, app: run_due_generations(s, app.extensions["llm_service"]))
 
 
 @celery.task(name="ghostpro.publish_due")
 def publish_due():
     from app.services.scheduler import publish_due_posts
     _run(lambda s, app: publish_due_posts(
-        s, app.extensions["linkedin_api"], app.extensions["openai_service"]))
+        s, app.extensions["linkedin_api"], app.extensions["llm_service"]))
 
 
 @celery.task(name="ghostpro.watch_sources")

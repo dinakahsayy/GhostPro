@@ -10,7 +10,7 @@ from app.services.account import (
 from app.services.scheduler import ensure_schedule, run_due_generations
 
 
-class FakeOpenAI:
+class FakeLLM:
     def chat(self, *a, **k):
         return "post"
 
@@ -82,7 +82,7 @@ def test_scheduler_skips_soft_deleted_user():
         # Re-activate the job to prove the user-level guard (not just pause) skips it.
         job.status = "active"
         s.commit()
-        created = run_due_generations(s, FakeOpenAI(), now=datetime.now(timezone.utc).replace(tzinfo=None))
+        created = run_due_generations(s, FakeLLM(), now=datetime.now(timezone.utc).replace(tzinfo=None))
         assert created == []
 
 

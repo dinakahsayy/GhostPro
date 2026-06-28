@@ -5,7 +5,7 @@ from app.services.posts import publish_post_now
 from app.services.style_profile import REFRESH_EVERY, maybe_refresh_style_profile
 
 
-class FakeOpenAI:
+class FakeLLM:
     def chat(self, system, user, **kwargs):
         return "Refreshed voice summary."
 
@@ -36,7 +36,7 @@ def test_no_refresh_before_threshold():
         user = _user(s)
         _publish(s, user, REFRESH_EVERY - 1)
         s.commit()
-        assert maybe_refresh_style_profile(s, user, FakeOpenAI()) is None
+        assert maybe_refresh_style_profile(s, user, FakeLLM()) is None
 
 
 def test_refresh_at_threshold_analyzes_published_posts():
@@ -44,7 +44,7 @@ def test_refresh_at_threshold_analyzes_published_posts():
         user = _user(s)
         _publish(s, user, REFRESH_EVERY)
         s.commit()
-        profile = maybe_refresh_style_profile(s, user, FakeOpenAI())
+        profile = maybe_refresh_style_profile(s, user, FakeLLM())
         s.commit()
         assert profile is not None
         assert profile.sample_posts_analyzed == REFRESH_EVERY
@@ -60,7 +60,7 @@ def test_publish_now_triggers_refresh_on_tenth_post():
         s.add(pending)
         s.commit()
 
-        ok, _ = publish_post_now(s, user, pending, FakeLinkedIn(), FakeOpenAI(),
+        ok, _ = publish_post_now(s, user, pending, FakeLinkedIn(), FakeLLM(),
                                  now=datetime(2026, 6, 24, 13, 0))
         s.commit()
         assert ok

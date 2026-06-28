@@ -10,7 +10,7 @@ from app.services.posts import (
 from app.services.scheduler import PREVIEW_WINDOW, publish_due_posts
 
 
-class FakeOpenAI:
+class FakeLLM:
     def __init__(self, reply="Regenerated content"):
         self.reply = reply
 
@@ -140,7 +140,7 @@ def test_regenerate_creates_new_version_and_supersedes():
         post = _draft(s, user, source_type="content_inbox", inbox_item_id=item.id)
         now = datetime(2026, 6, 24, 12, 0)
 
-        new_post = regenerate_post(s, user, post, FakeOpenAI("v2 body"), now=now)
+        new_post = regenerate_post(s, user, post, FakeLLM("v2 body"), now=now)
         s.commit()
 
         assert new_post.version == 2
@@ -176,7 +176,7 @@ def test_post_action_routes_require_login(client):
 
 
 def test_preview_page_and_actions_via_http(client):
-    client.application.extensions["openai_service"] = FakeOpenAI()
+    client.application.extensions["llm_service"] = FakeLLM()
     client.application.extensions["linkedin_api"] = FakeLinkedIn("urn:li:share:xyz")
     client.get("/dev/login")
     with Session() as s:

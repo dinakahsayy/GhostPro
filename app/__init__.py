@@ -38,15 +38,15 @@ def create_app():
     app = Flask(__name__)
 
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-change-this')
-    app.config['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
+    app.config['ANTHROPIC_API_KEY'] = os.getenv('ANTHROPIC_API_KEY')
     app.config['LINKEDIN_CLIENT_ID'] = os.getenv('LINKEDIN_CLIENT_ID')
     app.config['LINKEDIN_CLIENT_SECRET'] = os.getenv('LINKEDIN_CLIENT_SECRET')
     app.config['LINKEDIN_REDIRECT_URI'] = os.getenv('LINKEDIN_REDIRECT_URI')
 
-    from .services.openai_service import OpenAIService
+    from .services.llm_service import LLMService
     from .services.linkedin_api_service import LinkedInAPI
 
-    app.extensions['openai_service'] = OpenAIService(api_key=app.config['OPENAI_API_KEY'])
+    app.extensions['llm_service'] = LLMService(api_key=app.config['ANTHROPIC_API_KEY'])
     app.extensions['linkedin_api'] = LinkedInAPI(
         client_id=app.config['LINKEDIN_CLIENT_ID'],
         client_secret=app.config['LINKEDIN_CLIENT_SECRET'],

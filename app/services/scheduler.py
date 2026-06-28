@@ -114,13 +114,13 @@ def resume_schedule(session, user, now=None):
     return job
 
 
-def generate_scheduled_post(session, user, openai_service, now=None):
+def generate_scheduled_post(session, user, llm_service, now=None):
     """Generate one post for a scheduled slot. Auto-post mode starts the 2-hour
     preview countdown; manual mode leaves it queued for explicit approval."""
     now = now or utcnow()
-    post = generate_post_for_user(session, user, openai_service)
+    post = generate_post_for_user(session, user, llm_service)
     if post is None:
-        return None  # inbox empty / OpenAI failure — slot skipped (§9.4)
+        return None  # inbox empty / Claude failure — slot skipped (§9.4)
 
     post.status = "scheduled"
     post.notification_sent_at = now
@@ -134,7 +134,7 @@ def generate_scheduled_post(session, user, openai_service, now=None):
     return post
 
 
-def run_due_generations(session, openai_service, now=None):
+def run_due_generations(session, llm_service, now=None):
     """Generation tick: generate posts for every active schedule that is due."""
     now = now or utcnow()
     jobs = (
@@ -151,7 +151,7 @@ def run_due_generations(session, openai_service, now=None):
         user = session.get(User, job.user_id)
         if user is None or user.deleted_at is not None or not user.onboarding_complete:
             continue
-        post = generate_scheduled_post(session, user, openai_service, now=now)
+        post = generate_scheduled_post(session, user, llm_service, now=now)
         if post is not None:
             created.append(post)
         job.last_run_at = now
@@ -159,7 +159,7 @@ def run_due_generations(session, openai_service, now=None):
     return created
 
 
-def publish_due_posts(session, linkedin_api, openai_service=None, now=None):
+def publish_due_posts(session, linkedin_api, llm_service=None, now=None):
     """Publish tick: push due posts to LinkedIn. Auto-post 'scheduled' posts go
     once their 2-hour window elapses; user-'approved' posts go regardless of mode."""
     now = now or utcnow()
@@ -204,8 +204,8 @@ def publish_due_posts(session, linkedin_api, openai_service=None, now=None):
             if job:
                 job.retry_count = 0
             notify_published(session, user, post)
-            if openai_service is not None:
-                maybe_refresh_style_profile(session, user, openai_service)
+            if llm_service is not None:
+                maybe_refresh_style_profile(session, user, llm_service)
             published.append(post)
         else:
             # Retry up to MAX_PUBLISH_RETRIES with backoff, then give up (§9.1).
@@ -246,7 +246,7 @@ def start_scheduler(app):
                         app.logger.exception("scheduler tick failed")
         return run
 
-    scheduler.add_job(_tick(run_due_generations, "openai_service"),
+    scheduler.add_job(_tick(run_due_generations, "llm_service"),
                       "interval", seconds=interval, id="generation_tick")
 
     def _publish_tick():
@@ -254,7 +254,7 @@ def start_scheduler(app):
             with Session() as session:
                 try:
                     publish_due_posts(
-                        session, app.extensions["linkedin_api"], app.extensions["openai_service"]
+                        session, app.extensions["linkedin_api"], app.extensions["llm_service"]
                     )
                     session.commit()
                 except Exception:

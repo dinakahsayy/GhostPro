@@ -68,7 +68,7 @@ def analyze_posts(posts):
     }
 
 
-def _summary_from_posts(openai_service, user, posts):
+def _summary_from_posts(llm_service, user, posts):
     joined = "\n\n---\n\n".join(posts[:50])
     system = "You are an expert writing-style analyst for professional social content."
     prompt = (
@@ -80,10 +80,10 @@ def _summary_from_posts(openai_service, user, posts):
         "recurring themes, and sentence structure. Write only the description.\n\n"
         f"{joined}"
     )
-    return openai_service.chat(system, prompt, temperature=0.4, max_tokens=300)
+    return llm_service.chat(system, prompt, temperature=0.4, max_tokens=300)
 
 
-def _summary_from_onboarding(openai_service, user, profile):
+def _summary_from_onboarding(llm_service, user, profile):
     facts = [
         f"Role: {user.title}" if user.title else None,
         f"Industry: {user.industry}" if user.industry else None,
@@ -103,10 +103,10 @@ def _summary_from_onboarding(openai_service, user, profile):
         "likely themes. Write only the description.\n\n"
         + "\n".join(facts)
     )
-    return openai_service.chat(system, prompt, temperature=0.5, max_tokens=300)
+    return llm_service.chat(system, prompt, temperature=0.5, max_tokens=300)
 
 
-def generate_style_profile(session, user, openai_service, posts=None):
+def generate_style_profile(session, user, llm_service, posts=None):
     """Create or update the user's StyleProfile from past posts when available,
     otherwise from their onboarding answers. The GPT summary is best-effort: if
     it returns None (e.g. no API key), the row is still updated with whatever
@@ -122,9 +122,9 @@ def generate_style_profile(session, user, openai_service, posts=None):
         profile.emoji_usage = metrics["emoji_usage"]
         profile.hashtag_count = metrics["hashtag_count"]
         profile.sample_posts_analyzed = metrics["sample_posts_analyzed"]
-        summary = _summary_from_posts(openai_service, user, posts)
+        summary = _summary_from_posts(llm_service, user, posts)
     else:
-        summary = _summary_from_onboarding(openai_service, user, profile)
+        summary = _summary_from_onboarding(llm_service, user, profile)
 
     if summary:
         profile.raw_style_summary = summary
@@ -132,7 +132,7 @@ def generate_style_profile(session, user, openai_service, posts=None):
     return profile
 
 
-def maybe_refresh_style_profile(session, user, openai_service):
+def maybe_refresh_style_profile(session, user, llm_service):
     """After every REFRESH_EVERY published posts, re-derive the style profile
     from the user's own published content (§8.3). Returns the profile or None."""
     count = (
@@ -151,4 +151,4 @@ def maybe_refresh_style_profile(session, user, openai_service):
         .all()
     )
     contents = [p.content for p in posts if p.content]
-    return generate_style_profile(session, user, openai_service, posts=contents)
+    return generate_style_profile(session, user, llm_service, posts=contents)
