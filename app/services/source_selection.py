@@ -10,6 +10,7 @@ import random
 from dataclasses import dataclass
 
 from ..models.database import ContentInbox
+from .news import fetch_news_topic
 
 
 @dataclass
@@ -34,7 +35,7 @@ def _oldest_pending(session, user, priority):
     )
 
 
-def select_source(session, user):
+def select_source(session, user, news_fetcher=None):
     """Return the highest-priority available Source for this user."""
     # 1 & 2 — Content Inbox, Post Soon then Use Whenever, oldest first.
     for priority in ("post_soon", "use_whenever"):
@@ -57,7 +58,15 @@ def select_source(session, user):
         topic = random.choice(profile.top_topics)
         return Source(source_type="user_topic", text=topic, label=f"Topic: {topic}")
 
-    # 4 — Industry news (Phase 3). Skipped for now.
+    # 4 — Industry news filtered to the user's industry.
+    if user.industry:
+        article = (news_fetcher or fetch_news_topic)(user.industry)
+        if article:
+            return Source(
+                source_type="news_api",
+                text=article["text"],
+                label=f"Industry news: {article['title']}",
+            )
 
     # 5 — Seasonal / general fallback.
     return Source(
