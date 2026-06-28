@@ -50,6 +50,30 @@ class LinkedInAPI:
             self.logger.error(f"Error exchanging auth code: {e}")
             return None
 
+    def refresh_access_token(self, refresh_token):
+        """Exchange a refresh token for a new access token. Returns the token
+        response dict or None on failure."""
+        if not refresh_token:
+            return None
+        try:
+            response = requests.post(
+                "https://www.linkedin.com/oauth/v2/accessToken",
+                data={
+                    'grant_type': 'refresh_token',
+                    'refresh_token': refresh_token,
+                    'client_id': self.client_id,
+                    'client_secret': self.client_secret,
+                },
+                timeout=10,
+            )
+            if response.status_code != 200:
+                self.logger.error(f"Token refresh failed: {response.status_code}")
+                return None
+            return response.json()
+        except Exception as e:
+            self.logger.error(f"Error refreshing token: {e}")
+            return None
+
     def get_userinfo(self, access_token):
         """Fetch the OpenID Connect userinfo for the authenticated member.
 

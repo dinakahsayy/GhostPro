@@ -10,6 +10,7 @@ from .notifications import notify_failed, notify_preview, notify_published
 from .scheduler import PREVIEW_WINDOW
 from .source_selection import Source
 from .style_profile import maybe_refresh_style_profile
+from .tokens import ensure_valid_token
 
 # Statuses past which a post can no longer be edited/approved/etc.
 _TERMINAL = {"published", "discarded"}
@@ -82,11 +83,11 @@ def publish_post_now(session, user, post, linkedin_api, openai_service=None, now
     if post.status == "published":
         return False, "Already published"
     now = now or datetime.utcnow()
-    token = user.linkedin_access_token
+    token = ensure_valid_token(session, user, linkedin_api, now=now)
     if not token:
         post.status = "error"
         notify_failed(session, user, post)
-        return False, "No LinkedIn connection — please reconnect."
+        return False, "LinkedIn connection expired — please reconnect."
 
     result = linkedin_api.create_post(token, post.content)
     if not result:

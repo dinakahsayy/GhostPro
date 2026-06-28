@@ -15,6 +15,7 @@ from ..models.database import ContentInbox, Post, ScheduledJob, Session, User
 from .generation import generate_post_for_user
 from .notifications import notify_failed, notify_preview, notify_published
 from .style_profile import maybe_refresh_style_profile
+from .tokens import ensure_valid_token
 
 PREVIEW_WINDOW = timedelta(hours=2)      # §9.1 auto-post preview countdown
 RETRY_BACKOFF = timedelta(minutes=5)     # §9.1 publish retry backoff
@@ -181,9 +182,9 @@ def publish_due_posts(session, linkedin_api, openai_service=None, now=None):
             continue
 
         job = session.query(ScheduledJob).filter_by(user_id=user.get_id()).first()
-        token = user.linkedin_access_token
+        token = ensure_valid_token(session, user, linkedin_api, now=now)
         if not token:
-            post.status = "error"  # §9.4 — needs reconnect
+            post.status = "error"  # §9.4 — refresh failed / needs reconnect
             notify_failed(session, user, post)
             continue
 
