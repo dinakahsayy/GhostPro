@@ -13,10 +13,12 @@ from app.models.database import Base  # noqa: E402  (after load_dotenv / path se
 config = context.config
 
 # Pull the database URL from the environment, falling back to the dev SQLite db.
-config.set_main_option(
-    "sqlalchemy.url",
-    os.getenv("DATABASE_URL", "sqlite:///ghostpro.db"),
-)
+_db_url = os.getenv("DATABASE_URL", "sqlite:///ghostpro.db")
+config.set_main_option("sqlalchemy.url", _db_url)
+
+# Batch mode is only needed for SQLite's limited ALTER support; on Postgres it
+# would force unnecessary table rebuilds.
+_RENDER_AS_BATCH = _db_url.startswith("sqlite")
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -32,7 +34,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        render_as_batch=True,  # required for ALTER on SQLite
+        render_as_batch=_RENDER_AS_BATCH,  # batch only for SQLite
     )
 
     with context.begin_transaction():
@@ -51,7 +53,7 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=True,  # required for ALTER on SQLite
+            render_as_batch=_RENDER_AS_BATCH,  # batch only for SQLite
         )
 
         with context.begin_transaction():

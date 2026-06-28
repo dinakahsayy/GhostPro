@@ -12,8 +12,28 @@ login_manager = LoginManager()
 csrf = CSRFProtect()
 
 
+def _init_sentry():
+    """Initialize Sentry error monitoring when SENTRY_DSN is set (no-op otherwise)."""
+    dsn = os.getenv("SENTRY_DSN")
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+
+        sentry_sdk.init(
+            dsn=dsn,
+            integrations=[FlaskIntegration()],
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            environment=os.getenv("FLASK_ENV", "production"),
+        )
+    except Exception:  # pragma: no cover - monitoring must never break boot
+        pass
+
+
 def create_app():
     load_dotenv()
+    _init_sentry()
 
     app = Flask(__name__)
 

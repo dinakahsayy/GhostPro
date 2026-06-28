@@ -12,4 +12,12 @@ APScheduler==3.10.4
 tzdata==2024.2
 sendgrid==6.11.0
 feedparser==6.0.11
+
+# Production / scale (Phase 4)
+gunicorn==23.0.0
+psycopg2-binary==2.9.10
+celery==5.4.0
+redis==5.2.0
+sentry-sdk==2.18.0
+
 pytest==8.3.3
