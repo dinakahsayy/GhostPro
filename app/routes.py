@@ -13,9 +13,13 @@ from flask_login import (
     current_user, login_required, login_user, logout_user,
 )
 
-from .models.database import LinkedInPost, Notification, Post, Session, User, db_session
+from .models.database import Notification, Post, User, db_session
 from .services.generation import generate_post_for_user, post_to_dict
 from .services.notifications import notification_to_dict
+from .services.posts import (
+    approve_post, discard_post, edit_post, post_detail_to_dict, publish_post_now,
+    regenerate_post, reschedule_post, restore_version,
+)
 from .services.inbox import (
     create_inbox_item, get_inbox_item, inbox_item_to_dict, list_inbox_items,
     skip_inbox_item, soft_delete_inbox_item, toggle_priority, update_inbox_item,
@@ -295,20 +299,6 @@ def generate():
     return render_template('generate.html')
 
 
-@routes.route('/history')
-@login_required
-def history():
-    with Session() as session_db:
-        posts = session_db.query(LinkedInPost).order_by(LinkedInPost.timestamp.desc()).all()
-        return render_template('history.html', posts=posts)
-
-
-@routes.route('/templates')
-@login_required
-def templates():
-    return render_template('templates.html')
-
-
 # ---------------------------------------------------------------------------
 # Posts — new generation pipeline (§7.4, §8)
 # ---------------------------------------------------------------------------
@@ -336,22 +326,150 @@ def posts_generate():
 @routes.route('/posts', methods=['GET'])
 @login_required
 def posts_list():
-    posts = (
-        db_session.query(Post)
-        .filter(Post.user_id == current_user.get_id())
-        .order_by(Post.created_at.desc())
-        .all()
-    )
-    return jsonify([post_to_dict(p) for p in posts])
+    if request.args.get('format') == 'json':
+        posts = (
+            db_session.query(Post)
+            .filter(Post.user_id == current_user.get_id())
+            .order_by(Post.created_at.desc())
+            .all()
+        )
+        return jsonify([post_to_dict(p) for p in posts])
+    return render_template('posts.html')
+
+
+def _owned_post(post_id):
+    post = db_session.get(Post, post_id)
+    if post is None or post.user_id != current_user.get_id():
+        return None
+    return post
 
 
 @routes.route('/posts/<int:post_id>', methods=['GET'])
 @login_required
 def posts_get(post_id):
-    post = db_session.get(Post, post_id)
-    if post is None or post.user_id != current_user.get_id():
+    post = _owned_post(post_id)
+    if post is None:
+        if request.args.get('format') == 'json':
+            return jsonify({'status': 'error', 'message': 'Not found'}), 404
+        abort(404)
+    if request.args.get('format') == 'json':
+        return jsonify(post_detail_to_dict(db_session, post))
+    return render_template('preview.html', post_id=post_id)
+
+
+@routes.route('/posts/<int:post_id>', methods=['PUT'])
+@login_required
+def posts_edit(post_id):
+    post = _owned_post(post_id)
+    if post is None:
         return jsonify({'status': 'error', 'message': 'Not found'}), 404
-    return jsonify(post_to_dict(post))
+    try:
+        edit_post(post, (request.get_json(silent=True) or {}).get('content', post.content))
+        db_session.commit()
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    return jsonify({'status': 'success', 'post': post_detail_to_dict(db_session, post)})
+
+
+@routes.route('/posts/<int:post_id>/approve', methods=['POST'])
+@login_required
+def posts_approve(post_id):
+    post = _owned_post(post_id)
+    if post is None:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    try:
+        approve_post(post)
+        db_session.commit()
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    return jsonify({'status': 'success', 'post': post_detail_to_dict(db_session, post)})
+
+
+@routes.route('/posts/<int:post_id>/publish', methods=['POST'])
+@login_required
+def posts_publish(post_id):
+    post = _owned_post(post_id)
+    if post is None:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    user = db_session.get(User, current_user.get_id())
+    ok, error = publish_post_now(db_session, user, post, _linkedin())
+    db_session.commit()
+    if not ok:
+        return jsonify({'status': 'error', 'message': error}), 502
+    return jsonify({'status': 'success', 'post': post_detail_to_dict(db_session, post)})
+
+
+@routes.route('/posts/<int:post_id>/regenerate', methods=['POST'])
+@login_required
+def posts_regenerate(post_id):
+    post = _owned_post(post_id)
+    if post is None:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    user = db_session.get(User, current_user.get_id())
+    try:
+        new_post = regenerate_post(db_session, user, post, _openai())
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    if new_post is None:
+        db_session.rollback()
+        return jsonify({'status': 'error', 'message': 'Could not regenerate — check the OpenAI key.'}), 502
+    db_session.commit()
+    return jsonify({'status': 'success', 'post': post_detail_to_dict(db_session, new_post)})
+
+
+@routes.route('/posts/<int:post_id>/discard', methods=['POST'])
+@login_required
+def posts_discard(post_id):
+    post = _owned_post(post_id)
+    if post is None:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    try:
+        discard_post(db_session, post)
+        db_session.commit()
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    return jsonify({'status': 'success'})
+
+
+@routes.route('/posts/<int:post_id>/reschedule', methods=['POST'])
+@login_required
+def posts_reschedule(post_id):
+    post = _owned_post(post_id)
+    if post is None:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    raw = (request.get_json(silent=True) or {}).get('scheduled_at')
+    try:
+        when = datetime.fromisoformat(raw)
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'message': 'Invalid date/time'}), 400
+    try:
+        reschedule_post(post, when)
+        db_session.commit()
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    return jsonify({'status': 'success', 'post': post_detail_to_dict(db_session, post)})
+
+
+@routes.route('/posts/<int:post_id>/restore', methods=['POST'])
+@login_required
+def posts_restore(post_id):
+    post = _owned_post(post_id)
+    if post is None:
+        return jsonify({'status': 'error', 'message': 'Not found'}), 404
+    version_id = (request.get_json(silent=True) or {}).get('version_id')
+    user = db_session.get(User, current_user.get_id())
+    try:
+        new_post = restore_version(db_session, user, post, version_id)
+        db_session.commit()
+    except ValueError as e:
+        db_session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    return jsonify({'status': 'success', 'post': post_detail_to_dict(db_session, new_post)})
 
 
 # ---------------------------------------------------------------------------
@@ -402,83 +520,3 @@ def notifications_read_all():
         note.read_at = now
     db_session.commit()
     return jsonify({'status': 'success'})
-
-
-@routes.route('/post-to-linkedin/<int:post_id>', methods=['POST'])
-@login_required
-def post_to_linkedin(post_id):
-    try:
-        access_token = current_user.linkedin_access_token
-        if not access_token:
-            return jsonify({
-                'status': 'error',
-                'message': 'No LinkedIn connection on file — please reconnect.',
-            }), 401
-
-        with Session() as session_db:
-            post = session_db.get(LinkedInPost, post_id)
-            if not post:
-                return jsonify({'status': 'error', 'message': 'Post not found'}), 404
-
-            if not _linkedin().create_post(access_token, post.content):
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Failed to post to LinkedIn',
-                }), 500
-
-            post.posted = True
-            post.posted_at = datetime.utcnow()
-            session_db.commit()
-            return jsonify({'status': 'success'})
-
-    except Exception as e:
-        current_app.logger.exception("post_to_linkedin error: %s", e)
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@routes.route('/delete-post/<int:post_id>', methods=['DELETE'])
-@login_required
-def delete_post(post_id):
-    try:
-        with Session() as session_db:
-            post = session_db.get(LinkedInPost, post_id)
-            if not post:
-                return jsonify({'status': 'error', 'message': 'Post not found'}), 404
-            session_db.delete(post)
-            session_db.commit()
-            return jsonify({'status': 'success'})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@routes.route('/edit-post/<int:post_id>', methods=['PUT'])
-@login_required
-def edit_post(post_id):
-    try:
-        data = request.get_json() or {}
-        with Session() as session_db:
-            post = session_db.get(LinkedInPost, post_id)
-            if not post:
-                return jsonify({'status': 'error', 'message': 'Post not found'}), 404
-            post.content = data.get('content', post.content)
-            session_db.commit()
-            return jsonify({'status': 'success', 'post': post.content})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@routes.route('/schedule-post/<int:post_id>', methods=['POST'])
-@login_required
-def schedule_linkedin_post(post_id):
-    try:
-        data = request.get_json() or {}
-        schedule_time = datetime.fromisoformat(data.get('schedule_time'))
-        with Session() as session_db:
-            post = session_db.get(LinkedInPost, post_id)
-            if not post:
-                return jsonify({'status': 'error', 'message': 'Post not found'}), 404
-            post.scheduled_time = schedule_time
-            session_db.commit()
-            return jsonify({'status': 'success'})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500

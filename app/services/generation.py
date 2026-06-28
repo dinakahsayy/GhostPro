@@ -55,16 +55,11 @@ def post_process(text):
     return text
 
 
-def generate_post_for_user(session, user, openai_service, source=None):
-    """Generate a draft Post for the user from the highest-priority source.
-
-    Returns the Post, or None if generation failed (e.g. no OpenAI key) — in which
-    case no inbox item is consumed and no row is created.
-    """
+def compose_post_content(user, source, openai_service):
+    """Build the prompts for a source and return (content, generation_prompt), or
+    (None, prompt) if the model produced nothing. No DB side effects — reused by
+    both first-time generation and regeneration."""
     profile = user.style_profile
-    if source is None:
-        source = select_source(session, user)
-
     system_prompt = build_system_prompt(user, profile)
     user_prompt = build_user_prompt(source)
     length = (profile.preferred_length if profile else None) or "medium"
@@ -73,18 +68,34 @@ def generate_post_for_user(session, user, openai_service, source=None):
     content = openai_service.chat(
         system_prompt, user_prompt, model="gpt-4o", temperature=0.75, max_tokens=max_tokens
     )
+    generation_prompt = f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}"
     if not content:
+        return None, generation_prompt
+    return post_process(content), generation_prompt
+
+
+def generate_post_for_user(session, user, openai_service, source=None):
+    """Generate a draft Post for the user from the highest-priority source.
+
+    Returns the Post, or None if generation failed (e.g. no OpenAI key) — in which
+    case no inbox item is consumed and no row is created.
+    """
+    if source is None:
+        source = select_source(session, user)
+
+    content, generation_prompt = compose_post_content(user, source, openai_service)
+    if content is None:
         return None
 
     post = Post(
         user_id=user.get_id(),
-        content=post_process(content),
+        content=content,
         version=1,
         status="draft",
         source_type=source.source_type,
         inbox_item_id=source.inbox_item.id if source.inbox_item else None,
         source_topic=source.text if source.source_type != "content_inbox" else None,
-        generation_prompt=f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}",
+        generation_prompt=generation_prompt,
         created_at=datetime.utcnow(),
     )
     session.add(post)
@@ -106,5 +117,8 @@ def post_to_dict(post):
         "inbox_item_id": post.inbox_item_id,
         "source_topic": post.source_topic,
         "char_count": len(post.content or ""),
+        "linkedin_post_id": post.linkedin_post_id,
+        "scheduled_at": post.scheduled_at.isoformat() if post.scheduled_at else None,
+        "published_at": post.published_at.isoformat() if post.published_at else None,
         "created_at": post.created_at.isoformat() if post.created_at else None,
     }

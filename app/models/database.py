@@ -239,39 +239,6 @@ class Notification(Base):
         return f"<Notification(id={self.id}, type={self.type}, read={self.read})>"
 
 
-# ---------------------------------------------------------------------------
-# Legacy prototype table.
-# Retained so the current company-name generation routes keep working until
-# they are rewritten against User/Post in the onboarding+auth PR. Slated for
-# removal then.
-# ---------------------------------------------------------------------------
-class LinkedInPost(Base):
-    __tablename__ = 'linkedin_posts'
-
-    id = Column(Integer, primary_key=True)
-    content = Column(Text, nullable=False)
-
-    company_name = Column(String(255))
-    business_type = Column(String(100))
-    tone = Column(String(100))
-
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    posted = Column(Boolean, default=False)
-    posted_at = Column(DateTime, nullable=True)
-    scheduled_time = Column(DateTime, nullable=True)
-
-    likes_count = Column(Integer, default=0)
-    comments_count = Column(Integer, default=0)
-    shares_count = Column(Integer, default=0)
-    engagement_rate = Column(Float, default=0.0)
-
-    template_used = Column(String(100), nullable=True)
-    category = Column(String(100), nullable=True)
-
-    def __repr__(self):
-        return f"<LinkedInPost(id={self.id}, company={self.company_name}, posted={self.posted})>"
-
-
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///ghostpro.db')
 engine = create_engine(DATABASE_URL, future=True)
 

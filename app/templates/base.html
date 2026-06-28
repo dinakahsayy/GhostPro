@@ -36,8 +36,7 @@
             <a href="{{ url_for('routes.dashboard') }}">Dashboard</a>
             <a href="{{ url_for('routes.inbox') }}">Inbox</a>
             <a href="{{ url_for('routes.generate') }}">Generate</a>
-            <a href="{{ url_for('routes.history') }}">History</a>
-            <a href="{{ url_for('routes.templates') }}">Templates</a>
+            <a href="{{ url_for('routes.posts_list') }}">Posts</a>
         {% endif %}
         <span class="spacer"></span>
         {% if current_user.is_authenticated and current_user.onboarding_complete %}

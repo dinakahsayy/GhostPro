@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Posts{% endblock %}
+{% block content %}
+<div x-data="postsList()" x-init="load()">
+    <div style="display: flex; align-items: center;">
+        <h1 style="flex: 1;">Posts</h1>
+        <a class="button" href="{{ url_for('routes.generate') }}">Generate a post</a>
+    </div>
+
+    <div class="card">
+        <template x-if="posts.length === 0">
+            <p class="muted">No posts yet — generate your first one.</p>
+        </template>
+        <template x-for="p in posts" :key="p.id">
+            <a :href="`/posts/${p.id}`"
+               style="display: block; border-bottom: 1px solid #eee; padding: 12px 0; color: inherit; text-decoration: none;">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #efe;"
+                          x-text="p.status"></span>
+                    <span class="muted" style="font-size: 12px;" x-text="p.source_type"></span>
+                    <span class="muted" style="font-size: 12px;" x-text="p.char_count + ' chars'"></span>
+                    <span class="muted" style="font-size: 12px;" x-show="p.version > 1" x-text="'v' + p.version"></span>
+                </div>
+                <div style="margin-top: 6px;"
+                     x-text="p.content.length > 200 ? p.content.slice(0, 200) + '…' : p.content"></div>
+            </a>
+        </template>
+    </div>
+</div>
+
+<script>
+function postsList() {
+    return {
+        posts: [],
+        async load() {
+            const res = await fetch('{{ url_for("routes.posts_list") }}?format=json');
+            this.posts = await res.json();
+        }
+    };
+}
+</script>
+{% endblock %}

@@ -157,12 +157,13 @@ def run_due_generations(session, openai_service, now=None):
 
 
 def publish_due_posts(session, linkedin_api, now=None):
-    """Publish tick: push auto-post-mode posts whose 2-hour window has elapsed."""
+    """Publish tick: push due posts to LinkedIn. Auto-post 'scheduled' posts go
+    once their 2-hour window elapses; user-'approved' posts go regardless of mode."""
     now = now or datetime.utcnow()
     due = (
         session.query(Post)
         .filter(
-            Post.status == "scheduled",
+            Post.status.in_(("scheduled", "approved")),
             Post.scheduled_at.isnot(None),
             Post.scheduled_at <= now,
         )
@@ -171,8 +172,12 @@ def publish_due_posts(session, linkedin_api, now=None):
     published = []
     for post in due:
         user = session.get(User, post.user_id)
-        if user is None or (user.posting_mode or "manual_approval") != "auto_post":
-            continue  # manual posts wait for explicit approval
+        if user is None:
+            continue
+        # 'scheduled' posts only auto-publish in auto-post mode; 'approved' posts
+        # were explicitly OK'd by the user and publish in any mode.
+        if post.status == "scheduled" and (user.posting_mode or "manual_approval") != "auto_post":
+            continue
 
         job = session.query(ScheduledJob).filter_by(user_id=user.get_id()).first()
         token = user.linkedin_access_token

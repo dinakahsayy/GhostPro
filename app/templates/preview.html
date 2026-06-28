@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Preview{% endblock %}
+{% block content %}
+<div x-data="preview({{ post_id }})" x-init="load()">
+    <p><a href="{{ url_for('routes.posts_list') }}">&larr; All posts</a></p>
+
+    <template x-if="post">
+        <div>
+            <div class="card">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <h1 style="flex: 1; margin: 0;">Preview</h1>
+                    <span style="font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #efe;"
+                          x-text="post.status"></span>
+                </div>
+                <p class="muted" x-show="post.source_label" x-text="post.source_label"></p>
+                <p class="muted" style="font-size: 13px;">
+                    <span x-text="post.char_count"></span> / 3000 characters
+                    <span x-show="post.char_count > 3000" style="color:#b42318;"> — over LinkedIn's limit</span>
+                </p>
+
+                <template x-if="!editing">
+                    <div style="white-space: pre-wrap; border: 1px solid #eee; border-radius: 6px; padding: 14px;"
+                         x-text="post.content"></div>
+                </template>
+                <template x-if="editing">
+                    <div>
+                        <textarea rows="10" x-model="draft" style="width:100%;"></textarea>
+                        <button class="button" @click="saveEdit()">Save</button>
+                        <button class="button secondary" @click="editing=false">Cancel</button>
+                    </div>
+                </template>
+
+                <p x-show="message" class="flash" :class="ok ? 'success' : 'error'" x-text="message"></p>
+                <p x-show="post.status === 'published' && post.linkedin_post_id" class="flash success">
+                    Published to LinkedIn (<span x-text="post.linkedin_post_id"></span>).
+                </p>
+            </div>
+
+            <div class="card" x-show="!isTerminal()">
+                <h2>Actions</h2>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="button" @click="act('publish')">Approve &amp; publish now</button>
+                    <button class="button secondary" @click="act('approve')">Approve &amp; schedule</button>
+                    <button class="button secondary" @click="act('regenerate')">Regenerate</button>
+                    <button class="button secondary" @click="editing = true; draft = post.content">Edit</button>
+                    <button class="button secondary" @click="act('discard')">Discard</button>
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>Reschedule</label>
+                    <input type="datetime-local" x-model="rescheduleAt">
+                    <button class="button secondary" @click="reschedule()">Reschedule</button>
+                </div>
+            </div>
+
+            <div class="card" x-show="post.versions && post.versions.length > 1">
+                <h2>Version history</h2>
+                <template x-for="v in post.versions" :key="v.id">
+                    <div style="display: flex; gap: 8px; align-items: center; padding: 6px 0;">
+                        <span x-text="'v' + v.version"></span>
+                        <span class="muted" style="font-size: 12px;" x-text="v.status"></span>
+                        <span class="muted" style="font-size: 12px;" x-text="v.char_count + ' chars'"></span>
+                        <span style="flex: 1;"></span>
+                        <a href="#" x-show="v.id !== post.id" @click.prevent="restore(v.id)">restore</a>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+</div>
+
+<script>
+function preview(postId) {
+    return {
+        postId,
+        post: null,
+        editing: false,
+        draft: '',
+        rescheduleAt: '',
+        message: '',
+        ok: false,
+        isTerminal() { return this.post && ['published', 'discarded'].includes(this.post.status); },
+        async load() {
+            const res = await fetch(`/posts/${this.postId}?format=json`);
+            this.post = await res.json();
+        },
+        async _post(url, body) {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: body ? JSON.stringify(body) : undefined
+            });
+            return { res, data: await res.json() };
+        },
+        async act(action) {
+            this.message = '';
+            const { res, data } = await this._post(`/posts/${this.postId}/${action}`);
+            this.ok = res.ok && data.status === 'success';
+            this.message = this.ok ? `Done: ${action}` : (data.message || 'Action failed');
+            if (action === 'regenerate' && data.post) { window.location.href = `/posts/${data.post.id}`; return; }
+            if (action === 'discard') { window.location.href = '{{ url_for("routes.posts_list") }}'; return; }
+            await this.load();
+        },
+        async saveEdit() {
+            const res = await fetch(`/posts/${this.postId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: this.draft })
+            });
+            const data = await res.json();
+            this.ok = res.ok; this.message = res.ok ? 'Saved' : (data.message || 'Could not save');
+            this.editing = false;
+            await this.load();
+        },
+        async reschedule() {
+            if (!this.rescheduleAt) return;
+            const { res, data } = await this._post(`/posts/${this.postId}/reschedule`, { scheduled_at: this.rescheduleAt });
+            this.ok = res.ok; this.message = res.ok ? 'Rescheduled' : (data.message || 'Could not reschedule');
+            await this.load();
+        },
+        async restore(versionId) {
+            const { data } = await this._post(`/posts/${this.postId}/restore`, { version_id: versionId });
+            if (data.post) window.location.href = `/posts/${data.post.id}`;
+        }
+    };
+}
+</script>
+{% endblock %}

@@ -181,7 +181,7 @@ def test_generate_endpoint_creates_post(client):
     assert body["post"]["status"] == "draft"
     assert body["post"]["content"] == "Fresh draft body"
 
-    listed = client.get("/posts").get_json()
+    listed = client.get("/posts?format=json").get_json()
     assert len(listed) == 1
 
 
