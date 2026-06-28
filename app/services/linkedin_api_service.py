@@ -70,6 +70,34 @@ class LinkedInAPI:
             self.logger.error(f"Error fetching userinfo: {e}")
             return None
 
+    def get_engagement(self, access_token, post_urn):
+        """Fetch like/comment counts for a published post via socialActions.
+        Returns {likes, comments, shares} or None on failure."""
+        if not post_urn:
+            return None
+        try:
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'X-Restli-Protocol-Version': '2.0.0',
+            }
+            resp = requests.get(
+                f"{self.base_url}/socialActions/{post_urn}",
+                headers=headers,
+                timeout=10,
+            )
+            if resp.status_code != 200:
+                self.logger.error(f"Engagement fetch failed: {resp.status_code}")
+                return None
+            data = resp.json()
+            return {
+                'likes': (data.get('likesSummary') or {}).get('totalLikes', 0),
+                'comments': (data.get('commentsSummary') or {}).get('totalComments', 0),
+                'shares': 0,  # not exposed by socialActions; synced as 0 for now
+            }
+        except Exception as e:
+            self.logger.error(f"Error fetching engagement: {e}")
+            return None
+
     def create_post(self, access_token, content):
         try:
             headers = {

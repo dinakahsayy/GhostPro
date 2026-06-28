@@ -14,6 +14,7 @@ from flask_login import (
 )
 
 from .models.database import Notification, Post, User, db_session
+from .services.dashboard import analytics_summary, calendar_events, sync_engagement
 from .services.generation import generate_post_for_user, post_to_dict
 from .services.notifications import notification_to_dict
 from .services.posts import (
@@ -199,6 +200,27 @@ def dashboard():
     if not current_user.onboarding_complete:
         return redirect(url_for('routes.onboarding'))
     return render_template('dashboard.html', user=current_user)
+
+
+@routes.route('/dashboard/calendar')
+@login_required
+def dashboard_calendar():
+    return jsonify(calendar_events(db_session, current_user))
+
+
+@routes.route('/dashboard/analytics')
+@login_required
+def dashboard_analytics():
+    return jsonify(analytics_summary(db_session, current_user))
+
+
+@routes.route('/dashboard/sync', methods=['POST'])
+@login_required
+def dashboard_sync():
+    user = db_session.get(User, current_user.get_id())
+    updated = sync_engagement(db_session, user, _linkedin())
+    db_session.commit()
+    return jsonify({'status': 'success', 'updated': updated})
 
 
 # ---------------------------------------------------------------------------
