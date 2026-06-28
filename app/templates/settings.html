@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div x-data="settings()" x-init="load()">
+    <h1>Settings</h1>
+
+    <template x-if="form">
+        <div>
+            <div class="card">
+                <h2>Schedule</h2>
+                <p class="muted">
+                    Status: <strong x-text="status || 'none'"></strong>
+                    <template x-if="nextRun"><span> · next run <span x-text="nextRun.slice(0,16).replace('T',' ')"></span> UTC</span></template>
+                </p>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="button secondary" @click="setSchedule('pause')" x-show="status === 'active'">Pause posting</button>
+                    <button class="button" @click="setSchedule('resume')" x-show="status !== 'active'">Resume posting</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Posting</h2>
+                <div class="form-group">
+                    <label>Mode</label>
+                    <select x-model="form.posting_mode">
+                        <option value="auto_post">Auto-post with 2-hour preview</option>
+                        <option value="manual_approval">Manual approval required</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Frequency</label>
+                    <select x-model="form.post_frequency">
+                        <option value="daily">Daily</option>
+                        <option value="twice_weekly">2x per week</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="biweekly">Biweekly</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Preferred days</label>
+                    <template x-for="d in dayOptions" :key="d">
+                        <label style="font-weight:normal; margin-right:10px;">
+                            <input type="checkbox" :value="d" x-model="form.preferred_days"> <span x-text="d"></span>
+                        </label>
+                    </template>
+                </div>
+                <div class="form-group">
+                    <label>Preferred time</label>
+                    <input type="time" x-model="form.preferred_time">
+                </div>
+                <div class="form-group">
+                    <label>Timezone</label>
+                    <input type="text" x-model="form.timezone" placeholder="e.g. America/New_York">
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Notifications</h2>
+                <label style="font-weight:normal;">
+                    <input type="checkbox" x-model="form.notification_email"> Email
+                </label>
+                <label style="font-weight:normal;">
+                    <input type="checkbox" x-model="form.notification_inapp"> In-app
+                </label>
+            </div>
+
+            <p x-show="message" class="flash" :class="ok ? 'success' : 'error'" x-text="message"></p>
+            <button class="button" @click="save()" x-text="saving ? 'Saving...' : 'Save settings'"></button>
+        </div>
+    </template>
+</div>
+
+<script>
+function settings() {
+    return {
+        form: null, status: null, nextRun: null, saving: false, message: '', ok: false,
+        dayOptions: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        async load() {
+            const data = await fetch('{{ url_for("routes.settings") }}?format=json').then(r => r.json());
+            this.applySettings(data);
+        },
+        applySettings(data) {
+            this.status = data.schedule_status;
+            this.nextRun = data.next_run_at;
+            this.form = {
+                posting_mode: data.posting_mode || 'manual_approval',
+                post_frequency: data.post_frequency || 'weekly',
+                preferred_days: data.preferred_days || [],
+                preferred_time: data.preferred_time || '09:00',
+                timezone: data.timezone || '',
+                notification_email: data.notification_email,
+                notification_inapp: data.notification_inapp,
+            };
+        },
+        async save() {
+            this.saving = true; this.message = '';
+            try {
+                const res = await fetch('{{ url_for("routes.settings_update") }}', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.form)
+                });
+                const data = await res.json();
+                this.ok = res.ok && data.status === 'success';
+                this.message = this.ok ? 'Settings saved.' : (data.message || 'Could not save.');
+                if (this.ok) this.applySettings(data.settings);
+            } catch (e) {
+                this.ok = false; this.message = 'Network error.';
+            } finally {
+                this.saving = false;
+            }
+        },
+        async setSchedule(action) {
+            const data = await fetch(`/settings/${action}`, { method: 'POST' }).then(r => r.json());
+            if (data.settings) this.applySettings(data.settings);
+        }
+    };
+}
+</script>
+{% endblock %}

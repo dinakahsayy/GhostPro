@@ -73,6 +73,7 @@
             <a href="{{ url_for('routes.inbox') }}">Inbox</a>
             <a href="{{ url_for('routes.generate') }}">Generate</a>
             <a href="{{ url_for('routes.posts_list') }}">Posts</a>
+            <a href="{{ url_for('routes.settings') }}">Settings</a>
         {% endif %}
         <span class="spacer"></span>
         {% if current_user.is_authenticated and current_user.onboarding_complete %}

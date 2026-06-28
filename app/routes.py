@@ -30,7 +30,8 @@ from .services.sources import (
     create_source, delete_source, get_source, list_sources, source_to_dict,
     toggle_source,
 )
-from .services.scheduler import ensure_schedule
+from .services.scheduler import ensure_schedule, pause_schedule, resume_schedule
+from .services.settings import settings_to_dict, update_settings
 from .services.style_profile import generate_style_profile
 from .services.users import save_onboarding, upsert_user_from_userinfo
 
@@ -401,6 +402,49 @@ def inbox_sources_toggle(source_id):
 @login_required
 def generate():
     return render_template('generate.html')
+
+
+# ---------------------------------------------------------------------------
+# Settings (§7.5)
+# ---------------------------------------------------------------------------
+@routes.route('/settings', methods=['GET'])
+@login_required
+def settings():
+    if request.args.get('format') == 'json':
+        return jsonify(settings_to_dict(db_session, current_user))
+    return render_template('settings.html')
+
+
+@routes.route('/settings', methods=['PUT'])
+@login_required
+def settings_update():
+    user = db_session.get(User, current_user.get_id())
+    try:
+        update_settings(db_session, user, request.get_json(silent=True) or {})
+        db_session.commit()
+    except Exception as e:
+        db_session.rollback()
+        current_app.logger.exception("settings_update error: %s", e)
+        return jsonify({'status': 'error', 'message': 'Could not save settings'}), 400
+    return jsonify({'status': 'success', 'settings': settings_to_dict(db_session, user)})
+
+
+@routes.route('/settings/pause', methods=['POST'])
+@login_required
+def settings_pause():
+    user = db_session.get(User, current_user.get_id())
+    pause_schedule(db_session, user)
+    db_session.commit()
+    return jsonify({'status': 'success', 'settings': settings_to_dict(db_session, user)})
+
+
+@routes.route('/settings/resume', methods=['POST'])
+@login_required
+def settings_resume():
+    user = db_session.get(User, current_user.get_id())
+    resume_schedule(db_session, user)
+    db_session.commit()
+    return jsonify({'status': 'success', 'settings': settings_to_dict(db_session, user)})
 
 
 # ---------------------------------------------------------------------------
